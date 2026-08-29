@@ -4,24 +4,59 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:fullstack": "next dev",
+    "prebuild": "prisma generate",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build",
+    "pretypecheck": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "7.10.0",
+    "argon2": "^0.45.1",
+    "dotenv": "^17.4.2",
+    "jose": "^6.2.10",
+    "lucide-react": "^1.35.0",
     "next": "16.3.3",
+    "pg": "^8.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "10.5.10",
+    "@storybook/addon-docs": "10.5.10",
+    "@storybook/nextjs": "10.5.10",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.4",
+    "prisma": "7.10.0",
+    "storybook": "10.5.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "overrides": {
+      "rollup": "npm:@rollup/wasm-node@4.63.1"
+    }
   },
   "packageManager": "pnpm@10.22.0"
 }

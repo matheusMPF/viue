@@ -1,0 +1,2 @@
+ALTER TABLE "tb_otp"
+ALTER COLUMN "code" TYPE VARCHAR(255);

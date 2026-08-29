@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_content {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  external_id          String                 @db.VarChar(100)
+  external_source      String                 @db.VarChar(50)
+  type                 content_type
+  title                String                 @db.VarChar(255)
+  original_title       String?                @db.VarChar(255)
+  description          String?
+  poster_url           String?                @db.VarChar(500)
+  backdrop_url         String?                @db.VarChar(500)
+  release_date         DateTime?              @db.Date
+  external_rating      Decimal?               @db.Decimal(3, 1)
+  external_votes       Int?
+  status               content_status         @default(ACTIVE)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  tb_content_genre     tb_content_genre[]
+  tb_content_streaming tb_content_streaming[]
+  tb_movie             tb_movie?
+  tb_room_content      tb_room_content[]
+  tb_series            tb_series?
+  tb_user_content      tb_user_content[]
+
+  @@unique([external_id, external_source], map: "uk_tb_content_external")
+  @@index([external_source], map: "idx_tb_content_external_source")
+  @@index([title], map: "idx_tb_content_title")
+  @@index([type], map: "idx_tb_content_type")
+}
+
+model tb_content_genre {
+  content_id String     @db.Uuid
+  genre_id   String     @db.Uuid
+  tb_content tb_content @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_content_genre_content")
+  tb_genre   tb_genre   @relation(fields: [genre_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_content_genre_genre")
+
+  @@id([content_id, genre_id])
+  @@index([genre_id], map: "idx_tb_content_genre_genre_id")
+}
+
+model tb_content_streaming {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content_id           String               @db.Uuid
+  streaming_service_id String               @db.Uuid
+  url                  String?              @db.VarChar(500)
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime             @default(now()) @db.Timestamptz(6)
+  tb_content           tb_content           @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_content_streaming_content")
+  tb_streaming_service tb_streaming_service @relation(fields: [streaming_service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_content_streaming_service")
+
+  @@unique([content_id, streaming_service_id], map: "uk_tb_content_streaming")
+  @@index([streaming_service_id], map: "idx_tb_content_streaming_service_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_episode {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  season_id        String            @db.Uuid
+  external_id      String?           @db.VarChar(100)
+  episode_number   Int
+  title            String            @db.VarChar(255)
+  description      String?
+  still_url        String?           @db.VarChar(500)
+  release_date     DateTime?         @db.Date
+  duration_minutes Int?
+  external_rating  Decimal?          @db.Decimal(3, 1)
+  external_votes   Int?
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @db.Timestamptz(6)
+  tb_season        tb_season         @relation(fields: [season_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_episode_season")
+  tb_user_episode  tb_user_episode[]
+
+  @@unique([season_id, episode_number], map: "uk_tb_episode_number")
+  @@index([external_id], map: "idx_tb_episode_external_id")
+  @@index([season_id], map: "idx_tb_episode_season_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_friendship {
+  id                                          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requester_id                                String            @db.Uuid
+  addressee_id                                String            @db.Uuid
+  status                                      friendship_status @default(PENDING)
+  created_at                                  DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                                  DateTime          @default(now()) @db.Timestamptz(6)
+  tb_user_tb_friendship_addressee_idTotb_user tb_user           @relation("tb_friendship_addressee_idTotb_user", fields: [addressee_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_friendship_addressee")
+  tb_user_tb_friendship_requester_idTotb_user tb_user           @relation("tb_friendship_requester_idTotb_user", fields: [requester_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_friendship_requester")
+
+  @@unique([requester_id, addressee_id], map: "uk_tb_friendship")
+  @@index([addressee_id], map: "idx_tb_friendship_addressee")
+  @@index([requester_id], map: "idx_tb_friendship_requester")
+  @@index([status], map: "idx_tb_friendship_status")
+}
+
+model tb_genre {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String             @unique(map: "uk_tb_genre_name") @db.VarChar(100)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  tb_content_genre tb_content_genre[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_movie {
+  content_id       String     @id @db.Uuid
+  duration_minutes Int?
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime   @default(now()) @db.Timestamptz(6)
+  tb_content       tb_content @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_movie_content")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_otp {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String      @db.Uuid
+  code_hash  String      @map("code") @db.VarChar(255)
+  purpose    otp_purpose
+  expires_at DateTime    @db.Timestamptz(6)
+  used_at    DateTime?   @db.Timestamptz(6)
+  attempts   Int         @default(0)
+  created_at DateTime    @default(now()) @db.Timestamptz(6)
+  tb_user    tb_user     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_otp_user")
+
+  @@index([expires_at], map: "idx_tb_otp_expires_at")
+  @@index([user_id], map: "idx_tb_otp_user_id")
+}
+
+model tb_refresh_token {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @unique(map: "uk_tb_refresh_token_hash") @db.VarChar(500)
+  expires_at DateTime  @db.Timestamptz(6)
+  revoked_at DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  tb_user    tb_user   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_refresh_token_user")
+
+  @@index([expires_at], map: "idx_tb_refresh_token_expires_at")
+  @@index([user_id], map: "idx_tb_refresh_token_user_id")
+}
+
+model tb_room {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id            String                @db.Uuid
+  name                String                @db.VarChar(150)
+  description         String?
+  status              room_status           @default(ACTIVE)
+  match_mode          room_match_mode       @default(ALL_PARTICIPANTS)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  tb_user             tb_user               @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_owner")
+  tb_room_content     tb_room_content[]
+  tb_room_invite      tb_room_invite[]
+  tb_room_participant tb_room_participant[]
+
+  @@index([owner_id], map: "idx_tb_room_owner_id")
+  @@index([status], map: "idx_tb_room_status")
+}
+
+model tb_room_content {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id    String     @db.Uuid
+  content_id String     @db.Uuid
+  added_by   String     @db.Uuid
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  tb_user    tb_user    @relation(fields: [added_by], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_content_added_by")
+  tb_content tb_content @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_content_content")
+  tb_room    tb_room    @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_content_room")
+
+  @@unique([room_id, content_id], map: "uk_tb_room_content")
+  @@index([added_by], map: "idx_tb_room_content_added_by")
+  @@index([content_id], map: "idx_tb_room_content_content")
+  @@index([room_id], map: "idx_tb_room_content_room")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_room_invite {
+  id                                              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id                                         String             @db.Uuid
+  inviter_id                                      String             @db.Uuid
+  invited_user_id                                 String             @db.Uuid
+  status                                          room_invite_status @default(PENDING)
+  created_at                                      DateTime           @default(now()) @db.Timestamptz(6)
+  responded_at                                    DateTime?          @db.Timestamptz(6)
+  tb_user_tb_room_invite_invited_user_idTotb_user tb_user            @relation("tb_room_invite_invited_user_idTotb_user", fields: [invited_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_invite_invited_user")
+  tb_user_tb_room_invite_inviter_idTotb_user      tb_user            @relation("tb_room_invite_inviter_idTotb_user", fields: [inviter_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_invite_inviter")
+  tb_room                                         tb_room            @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_invite_room")
+
+  @@index([invited_user_id], map: "idx_tb_room_invite_invited_user")
+  @@index([room_id], map: "idx_tb_room_invite_room")
+  @@index([status], map: "idx_tb_room_invite_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_room_participant {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id   String    @db.Uuid
+  user_id   String    @db.Uuid
+  joined_at DateTime  @default(now()) @db.Timestamptz(6)
+  left_at   DateTime? @db.Timestamptz(6)
+  active    Boolean   @default(true)
+  tb_room   tb_room   @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_participant_room")
+  tb_user   tb_user   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_participant_user")
+
+  @@unique([room_id, user_id], map: "uk_tb_room_participant")
+  @@index([room_id], map: "idx_tb_room_participant_room")
+  @@index([user_id], map: "idx_tb_room_participant_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_season {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  series_id     String       @db.Uuid
+  season_number Int
+  name          String?      @db.VarChar(255)
+  overview      String?
+  poster_url    String?      @db.VarChar(500)
+  release_date  DateTime?    @db.Date
+  episode_count Int?
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime     @default(now()) @db.Timestamptz(6)
+  tb_episode    tb_episode[]
+  tb_series     tb_series    @relation(fields: [series_id], references: [content_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_season_series")
+
+  @@unique([series_id, season_number], map: "uk_tb_season_number")
+  @@index([series_id], map: "idx_tb_season_series_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_series {
+  content_id         String      @id @db.Uuid
+  number_of_seasons  Int?
+  number_of_episodes Int?
+  created_at         DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime    @default(now()) @db.Timestamptz(6)
+  tb_season          tb_season[]
+  tb_content         tb_content  @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_series_content")
+}
+
+model tb_streaming_service {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                      String                      @unique(map: "uk_tb_streaming_service_name") @db.VarChar(100)
+  logo_url                  String?                     @db.VarChar(500)
+  website_url               String?                     @db.VarChar(500)
+  active                    Boolean                     @default(true)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  tb_content_streaming      tb_content_streaming[]
+  tb_user_content_streaming tb_user_content_streaming[]
+}
+
+model tb_user {
+  id                                                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                                   String                @db.VarChar(120)
+  email                                                  String                @unique(map: "uk_tb_user_email") @db.VarChar(255)
+  password_hash                                          String?               @db.VarChar(255)
+  avatar_url                                             String?               @db.VarChar(500)
+  email_verified                                         Boolean               @default(false)
+  role                                                   user_role             @default(USER)
+  status                                                 user_status           @default(PENDING)
+  created_at                                             DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at                                             DateTime              @default(now()) @db.Timestamptz(6)
+  last_login_at                                          DateTime?             @db.Timestamptz(6)
+  tb_friendship_tb_friendship_addressee_idTotb_user      tb_friendship[]       @relation("tb_friendship_addressee_idTotb_user")
+  tb_friendship_tb_friendship_requester_idTotb_user      tb_friendship[]       @relation("tb_friendship_requester_idTotb_user")
+  tb_otp                                                 tb_otp[]
+  tb_refresh_token                                       tb_refresh_token[]
+  tb_room                                                tb_room[]
+  tb_room_content                                        tb_room_content[]
+  tb_room_invite_tb_room_invite_invited_user_idTotb_user tb_room_invite[]      @relation("tb_room_invite_invited_user_idTotb_user")
+  tb_room_invite_tb_room_invite_inviter_idTotb_user      tb_room_invite[]      @relation("tb_room_invite_inviter_idTotb_user")
+  tb_room_participant                                    tb_room_participant[]
+  tb_user_content                                        tb_user_content[]
+  tb_user_episode                                        tb_user_episode[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_user_content {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                   String                      @db.Uuid
+  content_id                String                      @db.Uuid
+  status                    library_status
+  rating                    Decimal?                    @db.Decimal(3, 1)
+  review                    String?
+  started_at                DateTime?                   @db.Timestamptz(6)
+  completed_at              DateTime?                   @db.Timestamptz(6)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  tb_content                tb_content                  @relation(fields: [content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_content_content")
+  tb_user                   tb_user                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_content_user")
+  tb_user_content_streaming tb_user_content_streaming[]
+
+  @@unique([user_id, content_id], map: "uk_tb_user_content")
+  @@index([content_id], map: "idx_tb_user_content_content_id")
+  @@index([rating], map: "idx_tb_user_content_rating")
+  @@index([status], map: "idx_tb_user_content_status")
+  @@index([user_id], map: "idx_tb_user_content_user_id")
+}
+
+model tb_user_content_streaming {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_content_id      String               @db.Uuid
+  streaming_service_id String               @db.Uuid
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  tb_user_content      tb_user_content      @relation(fields: [user_content_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_content_streaming_content")
+  tb_streaming_service tb_streaming_service @relation(fields: [streaming_service_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_content_streaming_service")
+
+  @@unique([user_content_id, streaming_service_id], map: "uk_tb_user_content_streaming")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_user_episode {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String     @db.Uuid
+  episode_id String     @db.Uuid
+  watched    Boolean    @default(false)
+  rating     Decimal?   @db.Decimal(3, 1)
+  review     String?
+  watched_at DateTime?  @db.Timestamptz(6)
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime   @default(now()) @db.Timestamptz(6)
+  tb_episode tb_episode @relation(fields: [episode_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_episode_episode")
+  tb_user    tb_user    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_user_episode_user")
+
+  @@unique([user_id, episode_id], map: "uk_tb_user_episode")
+  @@index([episode_id], map: "idx_tb_user_episode_episode_id")
+  @@index([user_id], map: "idx_tb_user_episode_user_id")
+}
+
+enum content_status {
+  ACTIVE
+  INACTIVE
+}
+
+enum content_type {
+  MOVIE
+  SERIES
+}
+
+enum friendship_status {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+enum library_status {
+  WANT_TO_WATCH
+  WATCHING
+  COMPLETED
+  DROPPED
+  ON_HOLD
+}
+
+enum otp_purpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum room_invite_status {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+}
+
+enum room_match_mode {
+  ALL_PARTICIPANTS
+  ANY_PAIR
+}
+
+enum room_status {
+  ACTIVE
+  CLOSED
+}
+
+enum user_role {
+  USER
+  ADMIN
+}
+
+enum user_status {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  PENDING
+}

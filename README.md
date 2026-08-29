@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Viuê
 
-## Getting Started
+Aplicação full-stack em Next.js, TypeScript, PostgreSQL e Prisma.
 
-First, run the development server:
+## Desenvolvimento
+
+Instale as dependências e inicie frontend e API no mesmo processo:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000). Os Route Handlers ficam sob `/api`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Storybook
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Inicie o catálogo de componentes em [http://localhost:6006](http://localhost:6006):
 
-## Learn More
+```bash
+pnpm storybook
+```
 
-To learn more about Next.js, take a look at the following resources:
+Valide a geração estática antes de publicar mudanças no design system:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm build-storybook
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Autenticação
 
-## Deploy on Vercel
+O módulo usa senha com Argon2id, OTP de seis dígitos, access token JWT de 15 minutos e refresh token rotativo de 30 dias. Access e refresh tokens são enviados somente em cookies HttpOnly; o banco armazena apenas hashes de OTPs e refresh tokens.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Endpoints públicos:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Endpoint                         | Corpo JSON                  | Resultado                                 |
+| -------------------------------- | --------------------------- | ----------------------------------------- |
+| `POST /api/auth/register`        | `name`, `email`, `password` | Cria conta `PENDING` e envia OTP          |
+| `POST /api/auth/verify-otp`      | `email`, `code`, `purpose`  | Ativa a conta ou emite reset token        |
+| `POST /api/auth/resend-otp`      | `email`, `purpose`          | Invalida e reenvia o OTP do mesmo fluxo   |
+| `POST /api/auth/login`           | `email`, `password`         | Cria cookies de autenticação              |
+| `POST /api/auth/refresh`         | sem corpo                   | Rotaciona o refresh token pelos cookies   |
+| `POST /api/auth/logout`          | sem corpo                   | Revoga refresh token e limpa cookies      |
+| `POST /api/auth/forgot-password` | `email`                     | Envia OTP sem revelar se a conta existe   |
+| `POST /api/auth/reset-password`  | `resetToken`, `password`    | Troca a senha e revoga sessões existentes |
+
+`purpose` aceita `EMAIL_VERIFICATION` ou `PASSWORD_RESET`. Cada OTP expira em 10 minutos, permite cinco tentativas e só funciona no fluxo para o qual foi criado. A validação de `PASSWORD_RESET` retorna um reset token curto e de uso único; ela nunca autentica o usuário.
+
+Todas as respostas seguem `{ "success": true, "data": ... }` ou `{ "success": false, "code": "...", "message": "..." }`.
+
+### Variáveis de ambiente
+
+Mantenha `DATABASE_URL` conforme a configuração atual e coloque os segredos abaixo em `.env.local`, que não é versionado:
+
+```env
+DATABASE_URL=postgresql://...
+JWT_SECRET=uma-chave-aleatoria-com-pelo-menos-32-caracteres
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME=Viuê
+```
+
+Gere um segredo JWT local com:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+O rate limiter padrão usa memória e serve apenas ao desenvolvimento local. Em produção, injete uma implementação compartilhada de `RateLimiter` com Redis ou Upstash por meio de `setRateLimiter`.
+
+O banco existente usa a coluna física `tb_otp.code`; o Prisma a mapeia como `code_hash`. A ampliação necessária da coluna está em `prisma/manual-migrations/20260827_auth_otp_hash.sql`.
+
+### Verificação
+
+```bash
+pnpm test
+pnpm lint
+pnpm typecheck
+pnpm build
+```
