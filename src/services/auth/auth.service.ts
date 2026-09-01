@@ -5,6 +5,7 @@ import {
   OTP_TTL_MINUTES,
   PASSWORD_RESET_GENERIC_MESSAGE,
   REFRESH_TOKEN_TTL_SECONDS,
+  RESET_TOKEN_TTL_SECONDS,
 } from '@/constants/auth';
 import { AuthError } from '@/lib/auth/errors';
 import {
@@ -22,7 +23,7 @@ import type {
   ResetPasswordInput,
   VerifyOtpInput,
 } from '@/schemas/auth';
-import type { AuthTokens, OtpPurpose, PublicUser, ResetTokenPayload } from '@/types/auth';
+import type { AuthTokens, OtpPurpose, PublicUser } from '@/types/auth';
 import type { AuthRepository, UserRecord } from './auth.repository';
 
 type AuthServiceDependencies = {
@@ -31,8 +32,6 @@ type AuthServiceDependencies = {
   hashPassword: (password: string) => Promise<string>;
   verifyPassword: (hash: string, password: string) => Promise<boolean>;
   createAccessToken: (user: PublicUser) => Promise<string>;
-  createResetToken: (userId: string, otpId: string) => Promise<string>;
-  verifyResetToken: (token: string) => Promise<ResetTokenPayload>;
   now?: () => Date;
 };
 
@@ -105,10 +104,19 @@ export class AuthService {
     }
 
     if (input.purpose === 'PASSWORD_RESET') {
-      await this.dependencies.repository.consumePasswordResetOtp(otp.id);
-      return {
-        resetToken: await this.dependencies.createResetToken(user.id, otp.id),
-      };
+      const resetToken = generateOpaqueToken();
+      const now = this.now();
+      const created = await this.dependencies.repository.consumePasswordResetOtpAndCreateToken({
+        otpId: otp.id,
+        userId: user.id,
+        tokenHash: hashToken(resetToken),
+        expiresAt: new Date(now.getTime() + RESET_TOKEN_TTL_SECONDS * 1000),
+        now,
+      });
+      if (!created) {
+        throw new AuthError('OTP_ALREADY_USED', 'Este código já foi utilizado.', 400);
+      }
+      return { resetToken };
     }
 
     await this.dependencies.repository.consumeEmailVerificationOtp(otp.id, user.id);
@@ -180,7 +188,9 @@ export class AuthService {
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{ message: string }> {
     const user = await this.dependencies.repository.findUserByEmail(input.email);
-    if (user) await this.sendReplacementOtp(user, 'PASSWORD_RESET');
+    if (user?.emailVerified && user.status === 'ACTIVE') {
+      await this.sendReplacementOtp(user, 'PASSWORD_RESET');
+    }
     return { message: PASSWORD_RESET_GENERIC_MESSAGE };
   }
 
@@ -196,22 +206,36 @@ export class AuthService {
     return { message: 'Um novo código foi enviado.' };
   }
 
-  async resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
-    const authorization = await this.dependencies.verifyResetToken(input.resetToken);
+  async resetPassword(input: ResetPasswordInput): Promise<AuthTokens & { message: string }> {
+    const token = await this.dependencies.repository.findPasswordResetTokenByHash(
+      hashToken(input.resetToken),
+    );
+    if (!token) this.throwResetTokenError('INVALID');
+    const now = this.now();
+    if (token.usedAt) this.throwResetTokenError('USED');
+    if (token.expiresAt.getTime() <= now.getTime()) this.throwResetTokenError('EXPIRED');
+
+    const user = await this.dependencies.repository.findUserById(token.userId);
+    if (!user) this.throwResetTokenError('INVALID');
+    this.assertCanAuthenticate(user);
+
     const passwordHash = await this.dependencies.hashPassword(input.password);
-    const completed = await this.dependencies.repository.completePasswordReset({
-      userId: authorization.sub,
-      otpId: authorization.otpId,
+    const refreshToken = generateOpaqueToken();
+    const completion = await this.dependencies.repository.completePasswordReset({
+      tokenId: token.id,
+      userId: token.userId,
       passwordHash,
+      newRefreshTokenHash: hashToken(refreshToken),
+      newRefreshTokenExpiresAt: this.refreshTokenExpiration(),
+      now,
     });
-    if (!completed) {
-      throw new AuthError(
-        'INVALID_RESET_TOKEN',
-        'Token de redefinição inválido ou já utilizado.',
-        400,
-      );
-    }
-    return { message: 'Senha alterada. Entre novamente com a nova senha.' };
+    if (completion !== 'SUCCESS') this.throwResetTokenError(completion);
+    return {
+      accessToken: await this.dependencies.createAccessToken(publicUser(user)),
+      refreshToken,
+      user: publicUser(user),
+      message: 'Senha alterada com sucesso.',
+    };
   }
 
   private createOtp(): { code: string; codeHash: string; expiresAt: Date } {
@@ -266,5 +290,15 @@ export class AuthService {
 
   private refreshTokenExpiration(): Date {
     return new Date(this.now().getTime() + REFRESH_TOKEN_TTL_SECONDS * 1000);
+  }
+
+  private throwResetTokenError(status: 'INVALID' | 'EXPIRED' | 'USED'): never {
+    if (status === 'EXPIRED') {
+      throw new AuthError('RESET_TOKEN_EXPIRED', 'O token de recuperação expirou.', 401);
+    }
+    if (status === 'USED') {
+      throw new AuthError('RESET_TOKEN_USED', 'O token de recuperação já foi utilizado.', 401);
+    }
+    throw new AuthError('INVALID_RESET_TOKEN', 'O token de recuperação é inválido.', 401);
   }
 }

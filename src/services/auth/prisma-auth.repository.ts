@@ -2,7 +2,14 @@ import { Prisma } from '@/generated/prisma/client';
 import type { otp_purpose } from '@/generated/prisma/enums';
 import { OTP_MAX_ATTEMPTS } from '@/constants/auth';
 import { prisma } from '@/lib/db';
-import type { AuthRepository, OtpRecord, RefreshTokenRecord, UserRecord } from './auth.repository';
+import type {
+  AuthRepository,
+  OtpRecord,
+  PasswordResetCompletion,
+  PasswordResetTokenRecord,
+  RefreshTokenRecord,
+  UserRecord,
+} from './auth.repository';
 
 const userSelect = {
   id: true,
@@ -142,12 +149,40 @@ export class PrismaAuthRepository implements AuthRepository {
     });
   }
 
-  async consumePasswordResetOtp(otpId: string): Promise<void> {
-    const consumed = await prisma.tb_otp.updateMany({
-      where: { id: otpId, used_at: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
-      data: { used_at: new Date() },
+  async consumePasswordResetOtpAndCreateToken(input: {
+    otpId: string;
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    now: Date;
+  }): Promise<boolean> {
+    return prisma.$transaction(async (tx) => {
+      const consumed = await tx.tb_otp.updateMany({
+        where: {
+          id: input.otpId,
+          user_id: input.userId,
+          purpose: 'PASSWORD_RESET',
+          used_at: null,
+          attempts: { lt: OTP_MAX_ATTEMPTS },
+          expires_at: { gt: input.now },
+        },
+        data: { used_at: input.now },
+      });
+      if (consumed.count !== 1) return false;
+
+      await tx.tb_password_reset_token.updateMany({
+        where: { user_id: input.userId, used_at: null },
+        data: { used_at: input.now },
+      });
+      await tx.tb_password_reset_token.create({
+        data: {
+          user_id: input.userId,
+          token_hash: input.tokenHash,
+          expires_at: input.expiresAt,
+        },
+      });
+      return true;
     });
-    if (consumed.count !== 1) throw new Error('OTP was consumed concurrently.');
   }
 
   async updateLastLogin(userId: string): Promise<void> {
@@ -215,34 +250,65 @@ export class PrismaAuthRepository implements AuthRepository {
     });
   }
 
-  async completePasswordReset(input: {
-    userId: string;
-    otpId: string;
-    passwordHash: string;
-  }): Promise<boolean> {
-    return prisma.$transaction(async (tx) => {
-      const authorization = await tx.tb_otp.findFirst({
-        where: {
-          id: input.otpId,
-          user_id: input.userId,
-          purpose: 'PASSWORD_RESET',
-          used_at: { not: null },
-          attempts: { lt: OTP_MAX_ATTEMPTS },
-        },
-        select: { id: true },
-      });
-      if (!authorization) return false;
+  async findPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
+    const token = await prisma.tb_password_reset_token.findUnique({
+      where: { token_hash: tokenHash },
+    });
+    if (!token) return null;
+    return {
+      id: token.id,
+      userId: token.user_id,
+      tokenHash: token.token_hash,
+      expiresAt: token.expires_at,
+      usedAt: token.used_at,
+    };
+  }
 
-      await tx.tb_otp.delete({ where: { id: authorization.id } });
+  async completePasswordReset(input: {
+    tokenId: string;
+    userId: string;
+    passwordHash: string;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }): Promise<PasswordResetCompletion> {
+    return prisma.$transaction(async (tx) => {
+      const consumed = await tx.tb_password_reset_token.updateMany({
+        where: {
+          id: input.tokenId,
+          user_id: input.userId,
+          used_at: null,
+          expires_at: { gt: input.now },
+        },
+        data: { used_at: input.now },
+      });
+      if (consumed.count !== 1) {
+        const current = await tx.tb_password_reset_token.findUnique({
+          where: { id: input.tokenId },
+          select: { user_id: true, used_at: true, expires_at: true },
+        });
+        if (!current || current.user_id !== input.userId) return 'INVALID';
+        if (current.used_at) return 'USED';
+        if (current.expires_at.getTime() <= input.now.getTime()) return 'EXPIRED';
+        return 'INVALID';
+      }
+
       await tx.tb_user.update({
         where: { id: input.userId },
-        data: { password_hash: input.passwordHash, updated_at: new Date() },
+        data: { password_hash: input.passwordHash, updated_at: input.now },
       });
       await tx.tb_refresh_token.updateMany({
         where: { user_id: input.userId, revoked_at: null },
-        data: { revoked_at: new Date() },
+        data: { revoked_at: input.now },
       });
-      return true;
+      await tx.tb_refresh_token.create({
+        data: {
+          user_id: input.userId,
+          token_hash: input.newRefreshTokenHash,
+          expires_at: input.newRefreshTokenExpiresAt,
+        },
+      });
+      return 'SUCCESS';
     });
   }
 }

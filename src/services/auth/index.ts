@@ -1,4 +1,4 @@
-import { createAccessToken, createResetToken, verifyResetToken } from '@/lib/auth/jwt';
+import { createAccessToken } from '@/lib/auth/jwt';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { BrevoService } from '@/lib/brevo/brevo.service';
 import { AuthService } from './auth.service';
@@ -10,8 +10,6 @@ export const authService = new AuthService({
   hashPassword,
   verifyPassword,
   createAccessToken,
-  createResetToken,
-  verifyResetToken,
 });
 
 export { AuthService } from './auth.service';

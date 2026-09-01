@@ -21,12 +21,6 @@ export type AuthTokens = {
 
 export type AccessTokenPayload = PublicUser;
 
-export type ResetTokenPayload = {
-  sub: string;
-  otpId: string;
-  purpose: 'PASSWORD_RESET';
-};
-
 export type ApiSuccess<T> = { success: true; data: T };
 export type ApiError = {
   success: false;

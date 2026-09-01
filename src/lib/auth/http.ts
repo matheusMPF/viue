@@ -9,6 +9,13 @@ export function successResponse<T>(data: T, status = 200): NextResponse<ApiSucce
   return NextResponse.json({ success: true, data }, { status });
 }
 
+export function messageResponse(
+  message: string,
+  status = 200,
+): NextResponse<{ success: true; message: string }> {
+  return NextResponse.json({ success: true, message }, { status });
+}
+
 export function errorResponse(error: unknown): NextResponse<ApiError> {
   if (error instanceof ZodError || error instanceof SyntaxError) {
     return NextResponse.json(

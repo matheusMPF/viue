@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Bricolage_Grotesque, Manrope } from 'next/font/google';
 
+import { AuthSessionManager } from '@/components/auth/auth-session-manager';
 import { ToastViewport } from '@/components/ui';
 
 import './globals.css';
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       className={`${bricolageGrotesque.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        <AuthSessionManager />
         {children}
         <ToastViewport />
       </body>

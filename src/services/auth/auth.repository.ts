@@ -27,6 +27,16 @@ export type RefreshTokenRecord = {
   user: UserRecord;
 };
 
+export type PasswordResetTokenRecord = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+};
+
+export type PasswordResetCompletion = 'SUCCESS' | 'INVALID' | 'EXPIRED' | 'USED';
+
 export interface AuthRepository {
   findUserByEmail(email: string): Promise<UserRecord | null>;
   findUserById(id: string): Promise<UserRecord | null>;
@@ -47,7 +57,13 @@ export interface AuthRepository {
   findLatestOtp(userId: string, purpose: OtpPurpose): Promise<OtpRecord | null>;
   incrementOtpAttempts(otpId: string): Promise<number>;
   consumeEmailVerificationOtp(otpId: string, userId: string): Promise<void>;
-  consumePasswordResetOtp(otpId: string): Promise<void>;
+  consumePasswordResetOtpAndCreateToken(input: {
+    otpId: string;
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    now: Date;
+  }): Promise<boolean>;
   updateLastLogin(userId: string): Promise<void>;
   createRefreshToken(input: { userId: string; tokenHash: string; expiresAt: Date }): Promise<void>;
   findRefreshTokenByHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
@@ -58,9 +74,13 @@ export interface AuthRepository {
     expiresAt: Date;
   }): Promise<void>;
   revokeRefreshToken(tokenHash: string): Promise<void>;
+  findPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetTokenRecord | null>;
   completePasswordReset(input: {
+    tokenId: string;
     userId: string;
-    otpId: string;
     passwordHash: string;
-  }): Promise<boolean>;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }): Promise<PasswordResetCompletion>;
 }

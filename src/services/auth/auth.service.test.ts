@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { OTP_MAX_ATTEMPTS } from '@/constants/auth';
+import { OTP_MAX_ATTEMPTS, RESET_TOKEN_TTL_SECONDS } from '@/constants/auth';
 import { hashToken } from '@/lib/auth/crypto';
-import { AuthError } from '@/lib/auth/errors';
-import type { OtpPurpose, ResetTokenPayload } from '@/types/auth';
-import type { AuthRepository, OtpRecord, RefreshTokenRecord, UserRecord } from './auth.repository';
+import type { OtpPurpose } from '@/types/auth';
+import type {
+  AuthRepository,
+  OtpRecord,
+  PasswordResetTokenRecord,
+  RefreshTokenRecord,
+  UserRecord,
+} from './auth.repository';
 import { AuthService } from './auth.service';
 
 const NOW = new Date('2026-08-27T12:00:00.000Z');
@@ -24,6 +29,7 @@ function makeUser(overrides: Partial<UserRecord> = {}): UserRecord {
 class FakeAuthRepository implements AuthRepository {
   users: UserRecord[] = [];
   otps: OtpRecord[] = [];
+  passwordResetTokens: PasswordResetTokenRecord[] = [];
   refreshTokens: RefreshTokenRecord[] = [];
   lastLoginUserId: string | null = null;
   passwordResetCount = 0;
@@ -110,8 +116,35 @@ class FakeAuthRepository implements AuthRepository {
     user.status = 'ACTIVE';
   }
 
-  async consumePasswordResetOtp(otpId: string) {
-    this.otps.find((otp) => otp.id === otpId)!.usedAt = NOW;
+  async consumePasswordResetOtpAndCreateToken(input: {
+    otpId: string;
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    now: Date;
+  }) {
+    const otp = this.otps.find(
+      (item) =>
+        item.id === input.otpId &&
+        item.userId === input.userId &&
+        item.purpose === 'PASSWORD_RESET' &&
+        !item.usedAt &&
+        item.attempts < OTP_MAX_ATTEMPTS &&
+        item.expiresAt.getTime() > input.now.getTime(),
+    );
+    if (!otp) return false;
+    otp.usedAt = input.now;
+    for (const token of this.passwordResetTokens) {
+      if (token.userId === input.userId && !token.usedAt) token.usedAt = input.now;
+    }
+    this.passwordResetTokens.push({
+      id: `reset-${this.passwordResetTokens.length + 1}`,
+      userId: input.userId,
+      tokenHash: input.tokenHash,
+      expiresAt: input.expiresAt,
+      usedAt: null,
+    });
+    return true;
   }
 
   async updateLastLogin(userId: string) {
@@ -152,30 +185,40 @@ class FakeAuthRepository implements AuthRepository {
     if (token && !token.revokedAt) token.revokedAt = NOW;
   }
 
-  async completePasswordReset(input: { userId: string; otpId: string; passwordHash: string }) {
-    const otpIndex = this.otps.findIndex(
-      (otp) =>
-        otp.id === input.otpId &&
-        otp.userId === input.userId &&
-        otp.purpose === 'PASSWORD_RESET' &&
-        otp.usedAt &&
-        otp.attempts < OTP_MAX_ATTEMPTS,
-    );
-    if (otpIndex < 0) return false;
-    this.otps.splice(otpIndex, 1);
+  async findPasswordResetTokenByHash(tokenHash: string) {
+    return this.passwordResetTokens.find((token) => token.tokenHash === tokenHash) ?? null;
+  }
+
+  async completePasswordReset(input: {
+    tokenId: string;
+    userId: string;
+    passwordHash: string;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }) {
+    const token = this.passwordResetTokens.find((item) => item.id === input.tokenId);
+    if (!token || token.userId !== input.userId) return 'INVALID' as const;
+    if (token.usedAt) return 'USED' as const;
+    if (token.expiresAt.getTime() <= input.now.getTime()) return 'EXPIRED' as const;
+    token.usedAt = input.now;
     this.users.find((user) => user.id === input.userId)!.passwordHash = input.passwordHash;
     for (const token of this.refreshTokens) {
       if (token.user.id === input.userId && !token.revokedAt) token.revokedAt = NOW;
     }
+    await this.createRefreshToken({
+      userId: input.userId,
+      tokenHash: input.newRefreshTokenHash,
+      expiresAt: input.newRefreshTokenExpiresAt,
+    });
     this.passwordResetCount += 1;
-    return true;
+    return 'SUCCESS' as const;
   }
 }
 
 function setup() {
   const repository = new FakeAuthRepository();
   const sentEmails: Array<{ to: string; code: string; purpose: OtpPurpose }> = [];
-  const resetPayloads = new Map<string, ResetTokenPayload>();
   const service = new AuthService({
     repository,
     mailer: {
@@ -186,19 +229,9 @@ function setup() {
     hashPassword: async (password) => `hash:${password}`,
     verifyPassword: async (hash, password) => hash === `hash:${password}`,
     createAccessToken: async (user) => `access:${user.id}`,
-    createResetToken: async (userId, otpId) => {
-      const token = `reset:${userId}:${otpId}`;
-      resetPayloads.set(token, { sub: userId, otpId, purpose: 'PASSWORD_RESET' });
-      return token;
-    },
-    verifyResetToken: async (token) => {
-      const payload = resetPayloads.get(token);
-      if (!payload) throw new AuthError('INVALID_RESET_TOKEN', 'Token inválido.', 400);
-      return payload;
-    },
     now: () => NOW,
   });
-  return { repository, sentEmails, resetPayloads, service };
+  return { repository, sentEmails, service };
 }
 
 function seedOtp(
@@ -330,8 +363,43 @@ describe('AuthService', () => {
       code: '482913',
       purpose: 'PASSWORD_RESET',
     });
-    expect(result).toEqual({ resetToken: 'reset:user-1:otp-1' });
+    expect(result).toEqual({ resetToken: expect.any(String) });
+    const resetToken = 'resetToken' in result ? result.resetToken : '';
+    expect(repository.passwordResetTokens).toEqual([
+      expect.objectContaining({
+        userId: 'user-1',
+        tokenHash: hashToken(resetToken),
+        usedAt: null,
+      }),
+    ]);
+    expect(repository.passwordResetTokens[0].tokenHash).not.toBe(resetToken);
+    expect(repository.passwordResetTokens[0].expiresAt).toEqual(
+      new Date(NOW.getTime() + RESET_TOKEN_TTL_SECONDS * 1000),
+    );
     expect(repository.refreshTokens).toHaveLength(0);
+  });
+
+  it('invalida um reset token anterior ao confirmar um novo OTP', async () => {
+    const { repository, service } = setup();
+    repository.users.push(makeUser());
+    repository.passwordResetTokens.push({
+      id: 'reset-anterior',
+      userId: 'user-1',
+      tokenHash: hashToken('token-anterior'),
+      expiresAt: new Date(NOW.getTime() + 60_000),
+      usedAt: null,
+    });
+    seedOtp(repository, '482913', 'PASSWORD_RESET');
+
+    await service.verifyOtp({
+      email: 'matheus@email.com',
+      code: '482913',
+      purpose: 'PASSWORD_RESET',
+    });
+
+    expect(repository.passwordResetTokens).toHaveLength(2);
+    expect(repository.passwordResetTokens[0].usedAt).toEqual(NOW);
+    expect(repository.passwordResetTokens[1].usedAt).toBeNull();
   });
 
   it.each([
@@ -446,12 +514,27 @@ describe('AuthService', () => {
     expect(existing.sentEmails[0].purpose).toBe('PASSWORD_RESET');
   });
 
+  it('não envia recuperação para conta ainda não verificada', async () => {
+    const { repository, sentEmails, service } = setup();
+    repository.users.push(makeUser({ emailVerified: false, status: 'PENDING' }));
+
+    const result = await service.forgotPassword({ email: 'matheus@email.com' });
+
+    expect(result.message).toContain('Se o e-mail estiver cadastrado');
+    expect(sentEmails).toHaveLength(0);
+  });
+
   it('redefine a senha, invalida o reset token e revoga sessões', async () => {
-    const { repository, resetPayloads, service } = setup();
+    const { repository, service } = setup();
     const user = makeUser();
     repository.users.push(user);
-    const otp = seedOtp(repository, '482913', 'PASSWORD_RESET', { usedAt: NOW });
-    resetPayloads.set('valid-reset', { sub: user.id, otpId: otp.id, purpose: 'PASSWORD_RESET' });
+    seedOtp(repository, '482913', 'PASSWORD_RESET');
+    const verification = await service.verifyOtp({
+      email: user.email,
+      code: '482913',
+      purpose: 'PASSWORD_RESET',
+    });
+    const resetToken = 'resetToken' in verification ? verification.resetToken : '';
     repository.refreshTokens.push({
       id: 'refresh-1',
       tokenHash: 'hash',
@@ -460,32 +543,76 @@ describe('AuthService', () => {
       user,
     });
 
-    await service.resetPassword({ resetToken: 'valid-reset', password: 'nova-senha' });
+    const result = await service.resetPassword({ resetToken, password: 'nova-senha' });
     expect(user.passwordHash).toBe('hash:nova-senha');
     expect(repository.refreshTokens[0].revokedAt).toEqual(NOW);
-    await expectAuthError(
-      service.resetPassword({ resetToken: 'valid-reset', password: 'outra-senha' }),
-      'INVALID_RESET_TOKEN',
-    );
+    expect(repository.refreshTokens).toHaveLength(2);
+    expect(repository.refreshTokens[1].revokedAt).toBeNull();
+    expect(repository.refreshTokens[1].tokenHash).toBe(hashToken(result.refreshToken));
+    expect(repository.refreshTokens[1].tokenHash).not.toBe(result.refreshToken);
+    expect(result).toMatchObject({
+      accessToken: 'access:user-1',
+      message: 'Senha alterada com sucesso.',
+      user: { id: 'user-1' },
+    });
+    await expect(
+      service.resetPassword({ resetToken, password: 'outra-senha' }),
+    ).rejects.toMatchObject({
+      code: 'RESET_TOKEN_USED',
+      message: 'O token de recuperação já foi utilizado.',
+      status: 401,
+    });
   });
 
   it('rejeita reset token expirado', async () => {
-    const repository = new FakeAuthRepository();
-    const service = new AuthService({
-      repository,
-      mailer: { sendOtpEmail: async () => undefined },
-      hashPassword: async (password) => `hash:${password}`,
-      verifyPassword: async () => true,
-      createAccessToken: async () => 'access',
-      createResetToken: async () => 'reset',
-      verifyResetToken: async () => {
-        throw new AuthError('RESET_TOKEN_EXPIRED', 'Token expirado.', 400);
-      },
-      now: () => NOW,
+    const { repository, service } = setup();
+    repository.users.push(makeUser());
+    repository.passwordResetTokens.push({
+      id: 'reset-1',
+      userId: 'user-1',
+      tokenHash: hashToken('expired'),
+      expiresAt: new Date(NOW.getTime() - 1),
+      usedAt: null,
     });
-    await expectAuthError(
+    await expect(
       service.resetPassword({ resetToken: 'expired', password: 'nova-senha' }),
-      'RESET_TOKEN_EXPIRED',
-    );
+    ).rejects.toMatchObject({
+      code: 'RESET_TOKEN_EXPIRED',
+      message: 'O token de recuperação expirou.',
+      status: 401,
+    });
+  });
+
+  it('rejeita reset token inválido', async () => {
+    const { service } = setup();
+    await expect(
+      service.resetPassword({ resetToken: 'desconhecido', password: 'nova-senha' }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_RESET_TOKEN',
+      message: 'O token de recuperação é inválido.',
+      status: 401,
+    });
+  });
+
+  it('permite que apenas uma validação simultânea consuma o OTP', async () => {
+    const { repository, service } = setup();
+    repository.users.push(makeUser());
+    seedOtp(repository, '482913', 'PASSWORD_RESET');
+
+    const results = await Promise.allSettled([
+      service.verifyOtp({
+        email: 'matheus@email.com',
+        code: '482913',
+        purpose: 'PASSWORD_RESET',
+      }),
+      service.verifyOtp({
+        email: 'matheus@email.com',
+        code: '482913',
+        purpose: 'PASSWORD_RESET',
+      }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(repository.passwordResetTokens).toHaveLength(1);
   });
 });

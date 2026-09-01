@@ -18,3 +18,4 @@ Games e livros fazem parte da visão da marca, mas não devem aparecer como recu
 
 - `documentacao-projeto-viue.docx`: visão do produto, diferenciais e evolução.
 - `requisitos-viue.docx`: requisitos funcionais, não funcionais, regras e critérios de aceite do MVP.
+- `recommendation-strategy.md`: regras, pesos, ativação e evolução do recomendador.

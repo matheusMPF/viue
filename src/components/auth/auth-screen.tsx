@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,7 +14,6 @@ import {
   LockKeyhole,
   Mail,
   RefreshCw,
-  Sparkles,
   UserRound,
   UsersRound,
 } from 'lucide-react';
@@ -22,11 +22,9 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Button, Input, Tabs } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 
-type AuthView = 'login' | 'register' | 'forgot' | 'otp' | 'reset' | 'success';
+type AuthView = 'login' | 'register' | 'forgot' | 'otp' | 'reset';
 type OtpPurpose = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-type SuccessMode = 'authenticated' | 'password-reset';
-
-type ApiSuccess<T> = { success: true; data: T };
+type ApiSuccess<T> = { success: true; data: T } | ({ success: true } & T);
 type ApiFailure = {
   success: false;
   code: string;
@@ -62,7 +60,7 @@ async function postJson<T>(url: string, body: Record<string, string>): Promise<T
     );
   }
 
-  return payload.data;
+  return 'data' in payload ? payload.data : (payload as T);
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -152,14 +150,13 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
 }
 
 export function AuthScreen() {
+  const router = useRouter();
   const showToast = useToast();
   const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('EMAIL_VERIFICATION');
   const [resetToken, setResetToken] = useState('');
-  const [successMode, setSuccessMode] = useState<SuccessMode>('authenticated');
-  const [userName, setUserName] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -203,9 +200,13 @@ export function AuthScreen() {
         email: submittedEmail,
         password: String(form.get('password') ?? ''),
       });
-      setUserName(data.user.name);
-      setSuccessMode('authenticated');
-      changeView('success');
+      showToast({
+        description: `Bem-vindo de volta, ${data.user.name}.`,
+        title: 'Login realizado',
+        variant: 'success',
+      });
+      router.replace('/');
+      router.refresh();
     } catch (requestError) {
       if (
         requestError instanceof ApiRequestError &&
@@ -310,9 +311,13 @@ export function AuthScreen() {
         setResetToken(data.resetToken);
         changeView('reset');
       } else {
-        setUserName(data.user?.name ?? '');
-        setSuccessMode('authenticated');
-        changeView('success');
+        showToast({
+          description: 'Seu e-mail foi confirmado e sua sessão está ativa.',
+          title: 'Conta validada',
+          variant: 'success',
+        });
+        router.replace('/');
+        router.refresh();
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -353,9 +358,21 @@ export function AuthScreen() {
 
     setIsSubmitting(true);
     try {
-      await postJson('/api/auth/reset-password', { resetToken, password });
-      setSuccessMode('password-reset');
-      changeView('success');
+      const data = await postJson<{ message: string }>('/api/auth/reset-password', {
+        resetToken,
+        password,
+      });
+      setResetToken('');
+      setOtpCode('');
+      changeView('login');
+      setNotice(data.message);
+      showToast({
+        description: 'Sua nova senha foi salva e sua sessão já está ativa.',
+        title: data.message,
+        variant: 'success',
+      });
+      router.replace('/');
+      router.refresh();
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -680,38 +697,6 @@ export function AuthScreen() {
                   Alterar senha
                 </Button>
               </form>
-            </div>
-          )}
-
-          {view === 'success' && (
-            <div className="auth-success" aria-live="polite">
-              <div className="auth-success-mark">
-                <Sparkles aria-hidden="true" size={30} />
-              </div>
-              <span className="auth-eyebrow">
-                {successMode === 'authenticated' ? 'Acesso confirmado' : 'Senha atualizada'}
-              </span>
-              <h2 ref={headingRef} tabIndex={-1}>
-                {successMode === 'authenticated'
-                  ? `Sua sessão está pronta${userName ? `, ${userName}` : ''}.`
-                  : 'Você já pode entrar novamente.'}
-              </h2>
-              <p>
-                {successMode === 'authenticated'
-                  ? 'Sua autenticação foi concluída e a sessão está protegida pelos cookies do servidor.'
-                  : 'A nova senha foi salva. Use-a no próximo acesso à Viuê.'}
-              </p>
-              {successMode === 'password-reset' && (
-                <Button
-                  className="auth-success-action"
-                  fullWidth
-                  onClick={() => changeView('login')}
-                  rightIcon={<ArrowRight aria-hidden="true" size={18} />}
-                  size="lg"
-                >
-                  Entrar com a nova senha
-                </Button>
-              )}
             </div>
           )}
 
