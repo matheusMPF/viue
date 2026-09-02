@@ -4,6 +4,7 @@ import { OTP_MAX_ATTEMPTS } from '@/constants/auth';
 import { prisma } from '@/lib/db';
 import type {
   AuthRepository,
+  ConsumeEmailChangeResult,
   OtpRecord,
   PasswordResetCompletion,
   PasswordResetTokenRecord,
@@ -18,6 +19,8 @@ const userSelect = {
   password_hash: true,
   email_verified: true,
   status: true,
+  birth_date: true,
+  created_at: true,
 } satisfies Prisma.tb_userSelect;
 
 type SelectedUser = Prisma.tb_userGetPayload<{ select: typeof userSelect }>;
@@ -30,6 +33,8 @@ function mapUser(user: SelectedUser): UserRecord {
     passwordHash: user.password_hash,
     emailVerified: user.email_verified,
     status: user.status,
+    birthDate: user.birth_date,
+    createdAt: user.created_at,
   };
 }
 
@@ -38,6 +43,7 @@ function mapOtp(otp: {
   user_id: string;
   code_hash: string;
   purpose: otp_purpose;
+  new_email: string | null;
   expires_at: Date;
   used_at: Date | null;
   attempts: number;
@@ -47,6 +53,7 @@ function mapOtp(otp: {
     userId: otp.user_id,
     codeHash: otp.code_hash,
     purpose: otp.purpose,
+    newEmail: otp.new_email,
     expiresAt: otp.expires_at,
     usedAt: otp.used_at,
     attempts: otp.attempts,
@@ -100,6 +107,7 @@ export class PrismaAuthRepository implements AuthRepository {
     codeHash: string;
     purpose: otp_purpose;
     expiresAt: Date;
+    newEmail?: string;
   }): Promise<OtpRecord> {
     return prisma.$transaction(async (tx) => {
       await tx.tb_otp.updateMany({
@@ -112,6 +120,7 @@ export class PrismaAuthRepository implements AuthRepository {
           code_hash: input.codeHash,
           purpose: input.purpose,
           expires_at: input.expiresAt,
+          new_email: input.newEmail,
         },
       });
       return mapOtp(otp);
@@ -310,5 +319,82 @@ export class PrismaAuthRepository implements AuthRepository {
       });
       return 'SUCCESS';
     });
+  }
+
+  async updateProfile(
+    userId: string,
+    data: { name?: string; birthDate?: Date | null },
+  ): Promise<UserRecord> {
+    const user = await prisma.tb_user.update({
+      where: { id: userId },
+      data: {
+        name: data.name,
+        birth_date: data.birthDate,
+        updated_at: new Date(),
+      },
+      select: userSelect,
+    });
+    return mapUser(user);
+  }
+
+  async consumeEmailChangeOtp(input: {
+    otpId: string;
+    userId: string;
+    newEmail: string;
+  }): Promise<ConsumeEmailChangeResult> {
+    try {
+      return await prisma.$transaction(async (tx): Promise<ConsumeEmailChangeResult> => {
+        const consumed = await tx.tb_otp.updateMany({
+          where: {
+            id: input.otpId,
+            user_id: input.userId,
+            used_at: null,
+            attempts: { lt: OTP_MAX_ATTEMPTS },
+          },
+          data: { used_at: new Date() },
+        });
+        if (consumed.count !== 1) throw new Error('OTP was consumed concurrently.');
+        await tx.tb_user.update({
+          where: { id: input.userId },
+          data: { email: input.newEmail, updated_at: new Date() },
+        });
+        return 'SUCCESS';
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return 'EMAIL_TAKEN';
+      }
+      throw error;
+    }
+  }
+
+  async updatePasswordAndRotateSession(input: {
+    userId: string;
+    passwordHash: string;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.tb_user.update({
+        where: { id: input.userId },
+        data: { password_hash: input.passwordHash, updated_at: input.now },
+      });
+      await tx.tb_refresh_token.updateMany({
+        where: { user_id: input.userId, revoked_at: null },
+        data: { revoked_at: input.now },
+      });
+      await tx.tb_refresh_token.create({
+        data: {
+          user_id: input.userId,
+          token_hash: input.newRefreshTokenHash,
+          expires_at: input.newRefreshTokenExpiresAt,
+        },
+      });
+    });
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await prisma.tb_user.delete({ where: { id: userId } });
   }
 }

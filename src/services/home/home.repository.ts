@@ -1,13 +1,15 @@
 import { prisma } from '@/lib/db';
+import { getUnreadNotificationCount } from '@/services/notifications/notification.service';
 
 export type HomeSocialContext = {
   friendCount: number;
   pendingFriendRequestCount: number;
+  unreadNotificationCount: number;
   watchedByTitle: Record<string, number>;
 };
 
 export async function getHomeSocialContext(userId: string): Promise<HomeSocialContext> {
-  const [friendships, pendingFriendRequestCount] = await Promise.all([
+  const [friendships, pendingFriendRequestCount, unreadNotificationCount] = await Promise.all([
     prisma.tb_friendship.findMany({
       where: {
         status: 'ACCEPTED',
@@ -21,6 +23,7 @@ export async function getHomeSocialContext(userId: string): Promise<HomeSocialCo
     prisma.tb_friendship.count({
       where: { addressee_id: userId, status: 'PENDING' },
     }),
+    getUnreadNotificationCount(userId),
   ]);
 
   const friendIds = friendships.map((friendship) =>
@@ -28,7 +31,7 @@ export async function getHomeSocialContext(userId: string): Promise<HomeSocialCo
   );
 
   if (friendIds.length === 0) {
-    return { friendCount: 0, pendingFriendRequestCount, watchedByTitle: {} };
+    return { friendCount: 0, pendingFriendRequestCount, unreadNotificationCount, watchedByTitle: {} };
   }
 
   const completedContent = await prisma.tb_user_content.groupBy({
@@ -52,5 +55,10 @@ export async function getHomeSocialContext(userId: string): Promise<HomeSocialCo
     }),
   );
 
-  return { friendCount: friendIds.length, pendingFriendRequestCount, watchedByTitle };
+  return {
+    friendCount: friendIds.length,
+    pendingFriendRequestCount,
+    unreadNotificationCount,
+    watchedByTitle,
+  };
 }

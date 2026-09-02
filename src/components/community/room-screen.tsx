@@ -2,10 +2,22 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Check, Crown, Film, Settings2, Star, UsersRound } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Crown,
+  Film,
+  Settings2,
+  Star,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
+import type { FocusEvent } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppNavigation } from '@/components/layout/app-navigation';
+import { Button } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
 
@@ -14,6 +26,12 @@ type Person = {
   name: string;
   email: string;
   avatar_url: string | null;
+};
+
+type InviteCandidate = {
+  id: string;
+  name: string;
+  email: string;
 };
 
 type Room = {
@@ -25,6 +43,8 @@ type Room = {
   owner: Person;
   participants: Person[];
   minimumRatings: number;
+  inviteCode: string;
+  inviteCandidates: InviteCandidate[];
   matches: {
     id: string;
     title: string;
@@ -38,7 +58,7 @@ type Room = {
 
 type ApiPayload = { success: true; data: Room } | { success: false; message?: string };
 
-function PersonAvatar({ person }: { person: Person }) {
+function PersonAvatar({ person }: { person: { name: string } }) {
   const initials = person.name
     .split(' ')
     .slice(0, 2)
@@ -52,10 +72,163 @@ function PersonAvatar({ person }: { person: Person }) {
   );
 }
 
+function RoomInvitePanel({
+  candidates,
+  inviteCode,
+  onInvited,
+  roomId,
+}: {
+  candidates: InviteCandidate[];
+  inviteCode: string;
+  onInvited: (friend: InviteCandidate) => void;
+  roomId: string;
+}) {
+  const showToast = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+  const inviteUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}/convite/${inviteCode}` : '';
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setIsOpen(false);
+    }
+  }
+
+  async function handleInvite(friend: InviteCandidate) {
+    setInvitingId(friend.id);
+    try {
+      const response = await authFetch(`/api/community/rooms/${roomId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendId: friend.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || 'Não foi possível convidar.');
+      }
+      onInvited(friend);
+      showToast({ title: `${friend.name} foi convidado.`, variant: 'success' });
+    } catch (error) {
+      showToast({
+        title: 'Não foi possível convidar',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'error',
+      });
+    } finally {
+      setInvitingId(null);
+    }
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      showToast({ title: 'Link copiado.', variant: 'success' });
+    } catch {
+      showToast({ title: 'Não foi possível copiar o link', variant: 'error' });
+    }
+  }
+
+  return (
+    <div className="room-invite" onBlur={handleBlur}>
+      <Button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        leftIcon={<UserPlus aria-hidden="true" size={16} />}
+        onClick={() => setIsOpen((current) => !current)}
+        size="sm"
+        variant="outline"
+      >
+        Convidar
+      </Button>
+
+      {isOpen ? (
+        <div className="room-invite-panel" role="menu" aria-label="Convidar para a sala">
+          <div className="room-invite-panel-section">
+            <span className="room-invite-panel-label">Convidar amigos</span>
+            {candidates.length > 0 ? (
+              candidates.map((friend) => (
+                <div className="room-invite-candidate" key={friend.id}>
+                  <PersonAvatar person={friend} />
+                  <div>
+                    <strong>{friend.name}</strong>
+                    <span>{friend.email}</span>
+                  </div>
+                  <Button
+                    disabled={invitingId === friend.id}
+                    isLoading={invitingId === friend.id}
+                    onClick={() => void handleInvite(friend)}
+                    role="menuitem"
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Convidar
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="room-invite-empty">Todos os seus amigos já estão nesta sala.</p>
+            )}
+          </div>
+
+          <div className="room-invite-panel-section">
+            <span className="room-invite-panel-label">Link de convite</span>
+            <div className="room-invite-link-box">
+              <input onFocus={(event) => event.target.select()} readOnly value={inviteUrl} />
+              <Button
+                leftIcon={<Copy aria-hidden="true" size={15} />}
+                onClick={() => void handleCopyLink()}
+                size="sm"
+                variant="outline"
+              >
+                Copiar
+              </Button>
+            </div>
+            <p className="room-invite-hint">Qualquer pessoa com conta pode entrar por este link.</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
   const [room, setRoom] = useState(initialRoom);
   const [isSaving, setIsSaving] = useState(false);
   const showToast = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshRoom() {
+      try {
+        const response = await authFetch(`/api/community/rooms/${room.id}`);
+        const payload = (await response.json()) as ApiPayload;
+        if (!cancelled && response.ok && payload.success) {
+          setRoom(payload.data);
+        }
+      } catch {
+        // mantém os dados exibidos; a próxima revalidação tenta de novo
+      }
+    }
+
+    function handleVisible() {
+      if (document.visibilityState === 'visible') void refreshRoom();
+    }
+
+    // Ao voltar para a sala (ex.: depois de avaliar um título em /titulo/[id] e
+    // apertar "voltar"), o Next reaproveita o payload em cache da navegação
+    // anterior e este componente remonta com a média antiga — por isso buscamos
+    // os dados frescos assim que a tela monta, além de ao reganhar foco.
+    void refreshRoom();
+    window.addEventListener('focus', handleVisible);
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleVisible);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
+  }, [room.id]);
 
   async function updateMode(matchMode: Room['matchMode']) {
     if (matchMode === room.matchMode) return;
@@ -108,7 +281,26 @@ export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
               <section aria-labelledby="participants-title">
                 <div className="room-panel-heading">
                   <h2 id="participants-title">Participantes</h2>
-                  <span>{room.participants.length}</span>
+                  <div className="room-panel-heading-actions">
+                    <span>{room.participants.length}</span>
+                    <RoomInvitePanel
+                      candidates={room.inviteCandidates}
+                      inviteCode={room.inviteCode}
+                      onInvited={(friend) =>
+                        setRoom((current) => ({
+                          ...current,
+                          inviteCandidates: current.inviteCandidates.filter(
+                            (candidate) => candidate.id !== friend.id,
+                          ),
+                          participants: [
+                            ...current.participants,
+                            { ...friend, avatar_url: null },
+                          ],
+                        }))
+                      }
+                      roomId={room.id}
+                    />
+                  </div>
                 </div>
                 <div className="room-participants">
                   {room.participants.map((person) => (

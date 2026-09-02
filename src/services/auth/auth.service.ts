@@ -23,7 +23,14 @@ import type {
   ResetPasswordInput,
   VerifyOtpInput,
 } from '@/schemas/auth';
-import type { AuthTokens, OtpPurpose, PublicUser } from '@/types/auth';
+import type {
+  ChangePasswordInput,
+  ConfirmEmailChangeInput,
+  DeleteAccountInput,
+  RequestEmailChangeInput,
+  UpdateProfileInput,
+} from '@/schemas/account';
+import type { AccountProfile, AuthTokens, OtpPurpose, PublicUser } from '@/types/auth';
 import type { AuthRepository, UserRecord } from './auth.repository';
 
 type AuthServiceDependencies = {
@@ -32,11 +39,22 @@ type AuthServiceDependencies = {
   hashPassword: (password: string) => Promise<string>;
   verifyPassword: (hash: string, password: string) => Promise<boolean>;
   createAccessToken: (user: PublicUser) => Promise<string>;
+  notifyAccountCreated?: (userId: string) => Promise<unknown>;
   now?: () => Date;
 };
 
 function publicUser(user: UserRecord): PublicUser {
   return { id: user.id, name: user.name, email: user.email };
+}
+
+function accountProfile(user: UserRecord): AccountProfile {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    birthDate: user.birthDate,
+    createdAt: user.createdAt,
+  };
 }
 
 export class AuthService {
@@ -120,6 +138,7 @@ export class AuthService {
     }
 
     await this.dependencies.repository.consumeEmailVerificationOtp(otp.id, user.id);
+    await this.dependencies.notifyAccountCreated?.(user.id);
     return this.issueTokens(user);
   }
 
@@ -236,6 +255,143 @@ export class AuthService {
       user: publicUser(user),
       message: 'Senha alterada com sucesso.',
     };
+  }
+
+  async getProfile(userId: string): Promise<AccountProfile> {
+    const user = await this.requireUser(userId);
+    return accountProfile(user);
+  }
+
+  async updateProfile(
+    userId: string,
+    input: UpdateProfileInput,
+  ): Promise<{ profile: AccountProfile; accessToken: string }> {
+    await this.requireUser(userId);
+    const user = await this.dependencies.repository.updateProfile(userId, {
+      name: input.name,
+      birthDate:
+        input.birthDate === undefined
+          ? undefined
+          : input.birthDate === null
+            ? null
+            : new Date(`${input.birthDate}T00:00:00.000Z`),
+    });
+    return {
+      profile: accountProfile(user),
+      accessToken: await this.dependencies.createAccessToken(publicUser(user)),
+    };
+  }
+
+  async requestEmailChange(
+    userId: string,
+    input: RequestEmailChangeInput,
+  ): Promise<{ message: string }> {
+    const user = await this.requireUser(userId);
+    if (input.newEmail === user.email) {
+      throw new AuthError('EMAIL_ALREADY_EXISTS', 'Este já é o seu e-mail atual.', 409);
+    }
+    if (await this.dependencies.repository.findUserByEmail(input.newEmail)) {
+      throw new AuthError('EMAIL_ALREADY_EXISTS', 'Este e-mail já possui uma conta.', 409);
+    }
+    this.dependencies.mailer.assertConfigured?.();
+    const { code, codeHash, expiresAt } = this.createOtp();
+    await this.dependencies.repository.replaceOtp({
+      userId,
+      codeHash,
+      purpose: 'EMAIL_CHANGE',
+      expiresAt,
+      newEmail: input.newEmail,
+    });
+    await this.dependencies.mailer.sendOtpEmail({
+      to: input.newEmail,
+      name: user.name,
+      code,
+      purpose: 'EMAIL_CHANGE',
+    });
+    return { message: 'Enviamos um código de confirmação para o novo e-mail.' };
+  }
+
+  async confirmEmailChange(
+    userId: string,
+    input: ConfirmEmailChangeInput,
+  ): Promise<{ profile: AccountProfile; accessToken: string }> {
+    await this.requireUser(userId);
+    const otp = await this.dependencies.repository.findLatestOtp(userId, 'EMAIL_CHANGE');
+    if (!otp || !otp.newEmail) throw new AuthError('INVALID_OTP', 'Código inválido.', 400);
+    if (otp.usedAt) {
+      throw new AuthError('OTP_ALREADY_USED', 'Este código já foi utilizado.', 400);
+    }
+    if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+      throw new AuthError('OTP_MAX_ATTEMPTS', 'Limite de tentativas excedido.', 400);
+    }
+    if (otp.expiresAt.getTime() <= this.now().getTime()) {
+      throw new AuthError('OTP_EXPIRED', 'Este código expirou.', 400);
+    }
+    if (!verifyTokenHash(input.code, otp.codeHash)) {
+      const attempts = await this.dependencies.repository.incrementOtpAttempts(otp.id);
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        throw new AuthError('OTP_MAX_ATTEMPTS', 'Limite de tentativas excedido.', 400);
+      }
+      throw new AuthError('INVALID_OTP', 'Código inválido.', 400);
+    }
+
+    const result = await this.dependencies.repository.consumeEmailChangeOtp({
+      otpId: otp.id,
+      userId,
+      newEmail: otp.newEmail,
+    });
+    if (result === 'EMAIL_TAKEN') {
+      throw new AuthError('EMAIL_ALREADY_EXISTS', 'Este e-mail já possui uma conta.', 409);
+    }
+
+    const user = await this.requireUser(userId);
+    return {
+      profile: accountProfile(user),
+      accessToken: await this.dependencies.createAccessToken(publicUser(user)),
+    };
+  }
+
+  async changePassword(userId: string, input: ChangePasswordInput): Promise<AuthTokens> {
+    const user = await this.requireUser(userId);
+    if (
+      !user.passwordHash ||
+      !(await this.dependencies.verifyPassword(user.passwordHash, input.currentPassword))
+    ) {
+      throw new AuthError('INVALID_CURRENT_PASSWORD', 'Senha atual incorreta.', 401);
+    }
+
+    const passwordHash = await this.dependencies.hashPassword(input.newPassword);
+    const refreshToken = generateOpaqueToken();
+    const now = this.now();
+    await this.dependencies.repository.updatePasswordAndRotateSession({
+      userId,
+      passwordHash,
+      newRefreshTokenHash: hashToken(refreshToken),
+      newRefreshTokenExpiresAt: this.refreshTokenExpiration(),
+      now,
+    });
+    return {
+      accessToken: await this.dependencies.createAccessToken(publicUser(user)),
+      refreshToken,
+      user: publicUser(user),
+    };
+  }
+
+  async deleteAccount(userId: string, input: DeleteAccountInput): Promise<void> {
+    const user = await this.requireUser(userId);
+    if (
+      !user.passwordHash ||
+      !(await this.dependencies.verifyPassword(user.passwordHash, input.password))
+    ) {
+      throw new AuthError('INVALID_CREDENTIALS', 'Senha incorreta.', 401);
+    }
+    await this.dependencies.repository.deleteUser(userId);
+  }
+
+  private async requireUser(userId: string): Promise<UserRecord> {
+    const user = await this.dependencies.repository.findUserById(userId);
+    if (!user) throw new AuthError('UNAUTHORIZED', 'Sessão inválida.', 401);
+    return user;
   }
 
   private createOtp(): { code: string; codeHash: string; expiresAt: Date } {

@@ -27,6 +27,7 @@ model tb_content {
   tb_content_genre     tb_content_genre[]
   tb_content_streaming tb_content_streaming[]
   tb_movie             tb_movie?
+  tb_notification      tb_notification[]
   tb_room_content      tb_room_content[]
   tb_series            tb_series?
   tb_user_content      tb_user_content[]
@@ -94,11 +95,37 @@ model tb_friendship {
   updated_at                                  DateTime          @default(now()) @db.Timestamptz(6)
   tb_user_tb_friendship_addressee_idTotb_user tb_user           @relation("tb_friendship_addressee_idTotb_user", fields: [addressee_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_friendship_addressee")
   tb_user_tb_friendship_requester_idTotb_user tb_user           @relation("tb_friendship_requester_idTotb_user", fields: [requester_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_friendship_requester")
+  tb_notification                             tb_notification[]
 
   @@unique([requester_id, addressee_id], map: "uk_tb_friendship")
   @@index([addressee_id], map: "idx_tb_friendship_addressee")
   @@index([requester_id], map: "idx_tb_friendship_requester")
   @@index([status], map: "idx_tb_friendship_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tb_notification {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String            @db.Uuid
+  type          notification_type
+  title         String            @db.VarChar(200)
+  message       String
+  actor_id      String?           @db.Uuid
+  content_id    String?           @db.Uuid
+  friendship_id String?           @db.Uuid
+  room_id       String?           @db.Uuid
+  action_url    String?           @db.VarChar(500)
+  read_at       DateTime?         @db.Timestamptz(6)
+  created_at    DateTime          @default(now()) @db.Timestamptz(6)
+
+  tb_user_tb_notification_user_idTotb_user  tb_user        @relation("tb_notification_user_idTotb_user", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_notification_user")
+  tb_user_tb_notification_actor_idTotb_user tb_user?       @relation("tb_notification_actor_idTotb_user", fields: [actor_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_tb_notification_actor")
+  tb_content                                tb_content?    @relation(fields: [content_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_tb_notification_content")
+  tb_friendship                             tb_friendship? @relation(fields: [friendship_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_tb_notification_friendship")
+  tb_room                                   tb_room?       @relation(fields: [room_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_tb_notification_room")
+
+  @@index([user_id, read_at], map: "idx_tb_notification_user_read")
+  @@index([user_id, created_at], map: "idx_tb_notification_user_created")
 }
 
 model tb_genre {
@@ -123,6 +150,7 @@ model tb_otp {
   user_id    String      @db.Uuid
   code_hash  String      @map("code") @db.VarChar(255)
   purpose    otp_purpose
+  new_email  String?     @db.VarChar(255)
   expires_at DateTime    @db.Timestamptz(6)
   used_at    DateTime?   @db.Timestamptz(6)
   attempts   Int         @default(0)
@@ -166,12 +194,14 @@ model tb_room {
   description         String?
   status              room_status           @default(ACTIVE)
   match_mode          room_match_mode       @default(ALL_PARTICIPANTS)
+  invite_code         String?               @unique(map: "uk_tb_room_invite_code") @db.VarChar(64)
   created_at          DateTime              @default(now()) @db.Timestamptz(6)
   updated_at          DateTime              @default(now()) @db.Timestamptz(6)
   tb_user             tb_user               @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_tb_room_owner")
   tb_room_content     tb_room_content[]
   tb_room_invite      tb_room_invite[]
   tb_room_participant tb_room_participant[]
+  tb_notification     tb_notification[]
 
   @@index([owner_id], map: "idx_tb_room_owner_id")
   @@index([status], map: "idx_tb_room_status")
@@ -270,29 +300,32 @@ model tb_streaming_service {
 }
 
 model tb_user {
-  id                                                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                                                   String                @db.VarChar(120)
-  email                                                  String                @unique(map: "uk_tb_user_email") @db.VarChar(255)
-  password_hash                                          String?               @db.VarChar(255)
-  avatar_url                                             String?               @db.VarChar(500)
-  email_verified                                         Boolean               @default(false)
-  role                                                   user_role             @default(USER)
-  status                                                 user_status           @default(PENDING)
-  created_at                                             DateTime              @default(now()) @db.Timestamptz(6)
-  updated_at                                             DateTime              @default(now()) @db.Timestamptz(6)
-  last_login_at                                          DateTime?             @db.Timestamptz(6)
-  tb_friendship_tb_friendship_addressee_idTotb_user      tb_friendship[]       @relation("tb_friendship_addressee_idTotb_user")
-  tb_friendship_tb_friendship_requester_idTotb_user      tb_friendship[]       @relation("tb_friendship_requester_idTotb_user")
+  id                                                     String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                                   String                    @db.VarChar(120)
+  email                                                  String                    @unique(map: "uk_tb_user_email") @db.VarChar(255)
+  password_hash                                          String?                   @db.VarChar(255)
+  avatar_url                                             String?                   @db.VarChar(500)
+  birth_date                                             DateTime?                 @db.Date
+  email_verified                                         Boolean                   @default(false)
+  role                                                   user_role                 @default(USER)
+  status                                                 user_status               @default(PENDING)
+  created_at                                             DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                                             DateTime                  @default(now()) @db.Timestamptz(6)
+  last_login_at                                          DateTime?                 @db.Timestamptz(6)
+  tb_friendship_tb_friendship_addressee_idTotb_user      tb_friendship[]           @relation("tb_friendship_addressee_idTotb_user")
+  tb_friendship_tb_friendship_requester_idTotb_user      tb_friendship[]           @relation("tb_friendship_requester_idTotb_user")
   tb_otp                                                 tb_otp[]
   tb_password_reset_token                                tb_password_reset_token[]
   tb_refresh_token                                       tb_refresh_token[]
   tb_room                                                tb_room[]
   tb_room_content                                        tb_room_content[]
-  tb_room_invite_tb_room_invite_invited_user_idTotb_user tb_room_invite[]      @relation("tb_room_invite_invited_user_idTotb_user")
-  tb_room_invite_tb_room_invite_inviter_idTotb_user      tb_room_invite[]      @relation("tb_room_invite_inviter_idTotb_user")
+  tb_room_invite_tb_room_invite_invited_user_idTotb_user tb_room_invite[]          @relation("tb_room_invite_invited_user_idTotb_user")
+  tb_room_invite_tb_room_invite_inviter_idTotb_user      tb_room_invite[]          @relation("tb_room_invite_inviter_idTotb_user")
   tb_room_participant                                    tb_room_participant[]
   tb_user_content                                        tb_user_content[]
   tb_user_episode                                        tb_user_episode[]
+  tb_notification_tb_notification_user_idTotb_user       tb_notification[]         @relation("tb_notification_user_idTotb_user")
+  tb_notification_tb_notification_actor_idTotb_user      tb_notification[]         @relation("tb_notification_actor_idTotb_user")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -373,9 +406,17 @@ enum library_status {
   ON_HOLD
 }
 
+enum notification_type {
+  ACCOUNT_CREATED
+  FRIEND_REQUEST_RECEIVED
+  FRIEND_CONTENT_RATED
+  ROOM_INVITE_RECEIVED
+}
+
 enum otp_purpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  EMAIL_CHANGE
 }
 
 enum room_invite_status {

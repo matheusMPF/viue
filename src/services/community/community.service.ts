@@ -1,6 +1,12 @@
 import { friendship_status, room_match_mode } from '@/generated/prisma/enums';
+import { generateOpaqueToken } from '@/lib/auth/crypto';
 import { AuthError } from '@/lib/auth/errors';
 import { prisma } from '@/lib/db';
+import {
+  notifyFriendRequestReceived,
+  notifyRoomInvite,
+} from '@/services/notifications/notification.service';
+import { getAcceptedFriendIds } from '@/services/shared/friendships';
 import { calculateRoomMatches } from './room-matches';
 
 const publicUserSelect = {
@@ -121,21 +127,22 @@ export async function sendFriendRequest(userId: string, addresseeId: string) {
     throw communityError('Já existe uma solicitação pendente.');
   }
 
-  if (existing) {
-    return prisma.tb_friendship.update({
-      where: { id: existing.id },
-      data: {
-        requester_id: userId,
-        addressee_id: addresseeId,
-        status: friendship_status.PENDING,
-        updated_at: new Date(),
-      },
-    });
-  }
+  const friendship = existing
+    ? await prisma.tb_friendship.update({
+        where: { id: existing.id },
+        data: {
+          requester_id: userId,
+          addressee_id: addresseeId,
+          status: friendship_status.PENDING,
+          updated_at: new Date(),
+        },
+      })
+    : await prisma.tb_friendship.create({
+        data: { requester_id: userId, addressee_id: addresseeId },
+      });
 
-  return prisma.tb_friendship.create({
-    data: { requester_id: userId, addressee_id: addresseeId },
-  });
+  await notifyFriendRequestReceived(addresseeId, userId, friendship.id);
+  return friendship;
 }
 
 export async function respondToFriendRequest(
@@ -238,7 +245,20 @@ export async function getRoomDetail(userId: string, roomId: string) {
   });
   if (!room) throw communityError('Sala não encontrada ou sem acesso.', 404);
 
+  const inviteCode = room.invite_code ?? (await ensureRoomInviteCode(room.id));
+
   const participantIds = room.tb_room_participant.map((item) => item.user_id);
+  const friendIds = await getAcceptedFriendIds(userId);
+  const candidateIds = friendIds.filter((id) => !participantIds.includes(id));
+  const inviteCandidates =
+    candidateIds.length > 0
+      ? await prisma.tb_user.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: 'asc' },
+        })
+      : [];
+
   const ratings = await prisma.tb_user_content.findMany({
     where: { user_id: { in: participantIds }, rating: { not: null } },
     include: { tb_content: true },
@@ -269,7 +289,67 @@ export async function getRoomDetail(userId: string, roomId: string) {
     participants: room.tb_room_participant.map((item) => item.tb_user),
     minimumRatings,
     matches,
+    inviteCode,
+    inviteCandidates,
   };
+}
+
+async function ensureRoomInviteCode(roomId: string): Promise<string> {
+  const inviteCode = generateOpaqueToken();
+  const room = await prisma.tb_room.update({
+    where: { id: roomId },
+    data: { invite_code: inviteCode },
+    select: { invite_code: true },
+  });
+  return room.invite_code!;
+}
+
+async function assertRoomMember(userId: string, roomId: string) {
+  const room = await prisma.tb_room.findFirst({
+    where: {
+      id: roomId,
+      status: 'ACTIVE',
+      OR: [
+        { owner_id: userId },
+        { tb_room_participant: { some: { user_id: userId, active: true } } },
+      ],
+    },
+  });
+  if (!room) throw communityError('Sala não encontrada ou sem acesso.', 404);
+  return room;
+}
+
+export async function inviteFriendToRoom(userId: string, roomId: string, friendId: string) {
+  const room = await assertRoomMember(userId, roomId);
+
+  const friendIds = await getAcceptedFriendIds(userId);
+  if (!friendIds.includes(friendId)) {
+    throw communityError('Só é possível convidar amigos aceitos.');
+  }
+
+  await prisma.tb_room_participant.upsert({
+    where: { room_id_user_id: { room_id: roomId, user_id: friendId } },
+    create: { room_id: roomId, user_id: friendId },
+    update: { active: true, left_at: null },
+  });
+
+  await notifyRoomInvite({ inviterId: userId, inviteeId: friendId, roomId, roomName: room.name });
+}
+
+export async function joinRoomByInviteCode(userId: string, code: string) {
+  const room = await prisma.tb_room.findFirst({
+    where: { invite_code: code, status: 'ACTIVE' },
+    select: { id: true },
+  });
+  if (!room) throw communityError('Convite inválido.', 404);
+
+  await prisma.tb_room_participant.upsert({
+    where: { room_id_user_id: { room_id: room.id, user_id: userId } },
+    create: { room_id: room.id, user_id: userId },
+    update: { active: true, left_at: null },
+  });
+
+  return { roomId: room.id };
 }
 
 export async function updateRoomMatchMode(

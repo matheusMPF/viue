@@ -1,6 +1,8 @@
 import type {
   TmdbGenreResponse,
   TmdbMovieSearchResponse,
+  TmdbSeasonDetail,
+  TmdbTvDetail,
   TmdbTvSearchResponse,
 } from './tmdb.types';
 
@@ -147,4 +149,14 @@ export function discoverTopRatedTmdbSeries(page = 1) {
 
 export function getTmdbSeriesGenres() {
   return tmdbRequest<TmdbGenreResponse>('/genre/tv/list', { revalidate: 60 * 60 * 24 });
+}
+
+export function getTmdbSeriesDetails(tmdbId: number) {
+  return tmdbRequest<TmdbTvDetail>(`/tv/${tmdbId}`, { revalidate: 60 * 60 * 24 });
+}
+
+export function getTmdbSeasonEpisodes(tmdbId: number, seasonNumber: number) {
+  return tmdbRequest<TmdbSeasonDetail>(`/tv/${tmdbId}/season/${seasonNumber}`, {
+    revalidate: 60 * 60 * 24,
+  });
 }

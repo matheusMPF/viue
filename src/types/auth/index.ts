@@ -21,6 +21,14 @@ export type AuthTokens = {
 
 export type AccessTokenPayload = PublicUser;
 
+export type AccountProfile = {
+  id: string;
+  name: string;
+  email: string;
+  birthDate: Date | null;
+  createdAt: Date;
+};
+
 export type ApiSuccess<T> = { success: true; data: T };
 export type ApiError = {
   success: false;

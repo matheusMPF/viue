@@ -4,7 +4,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Bell,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -17,8 +16,10 @@ import {
 import type { FocusEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { UserMenu } from '@/components/account/user-menu';
 import { MoviePosterCard } from '@/components/catalog/movie-poster-card';
 import { AppNavigation } from '@/components/layout/app-navigation';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Badge, Button } from '@/components/ui';
 import { authFetch } from '@/lib/auth/auth-fetch';
 import type { HomeSocialContext } from '@/services/home/home.repository';
@@ -322,12 +323,6 @@ export function HomeScreen({
       (socialContext.friendCount > 0 ? socialHighlights.length : 0) >
     0;
   const firstName = user.name.trim().split(/\s+/)[0];
-  const initials = user.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
 
   async function loadMovieCatalog({
     kind,
@@ -576,38 +571,8 @@ export function HomeScreen({
               </div>
             ) : null}
           </div>
-          <button
-            className="home-icon-button"
-            aria-label={
-              socialContext.pendingFriendRequestCount > 0
-                ? `${socialContext.pendingFriendRequestCount} solicitações de amizade pendentes`
-                : 'Nenhuma notificação nova'
-            }
-            onClick={() => router.push('/comunidade')}
-            title={
-              socialContext.pendingFriendRequestCount > 0
-                ? 'Ver solicitações de amizade'
-                : 'Notificações'
-            }
-            type="button"
-          >
-            <Bell aria-hidden="true" size={20} />
-            {socialContext.pendingFriendRequestCount > 0 ? (
-              <span className="home-notification-badge" aria-hidden="true">
-                {socialContext.pendingFriendRequestCount > 99
-                  ? '99+'
-                  : socialContext.pendingFriendRequestCount}
-              </span>
-            ) : null}
-          </button>
-          <span
-            className="home-avatar"
-            aria-label={`Perfil de ${user.name}`}
-            role="img"
-            title={user.name}
-          >
-            {initials}
-          </span>
+          <NotificationBell unreadCount={socialContext.unreadNotificationCount} />
+          <UserMenu user={user} />
         </header>
 
         <main className="home-content">

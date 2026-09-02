@@ -30,6 +30,16 @@ export function setAuthCookies(
   });
 }
 
+export function setAccessTokenCookie(response: NextResponse, accessToken: string): void {
+  response.cookies.set(ACCESS_TOKEN_COOKIE, accessToken, {
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: ACCESS_TOKEN_TTL_SECONDS,
+  });
+}
+
 export function clearAuthCookies(response: NextResponse): void {
   response.cookies.set(ACCESS_TOKEN_COOKIE, '', {
     httpOnly: true,

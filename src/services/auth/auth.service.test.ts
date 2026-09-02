@@ -22,6 +22,8 @@ function makeUser(overrides: Partial<UserRecord> = {}): UserRecord {
     passwordHash: 'hash:senha-segura',
     emailVerified: true,
     status: 'ACTIVE',
+    birthDate: null,
+    createdAt: NOW,
     ...overrides,
   };
 }
@@ -64,6 +66,7 @@ class FakeAuthRepository implements AuthRepository {
       userId: user.id,
       codeHash: input.codeHash,
       purpose: input.purpose,
+      newEmail: null,
       expiresAt: input.expiresAt,
       usedAt: null,
       attempts: 0,
@@ -76,6 +79,7 @@ class FakeAuthRepository implements AuthRepository {
     codeHash: string;
     purpose: OtpPurpose;
     expiresAt: Date;
+    newEmail?: string;
   }) {
     for (const otp of this.otps) {
       if (otp.userId === input.userId && otp.purpose === input.purpose) {
@@ -88,6 +92,7 @@ class FakeAuthRepository implements AuthRepository {
       userId: input.userId,
       codeHash: input.codeHash,
       purpose: input.purpose,
+      newEmail: input.newEmail ?? null,
       expiresAt: input.expiresAt,
       usedAt: null,
       attempts: 0,
@@ -214,11 +219,52 @@ class FakeAuthRepository implements AuthRepository {
     this.passwordResetCount += 1;
     return 'SUCCESS' as const;
   }
+
+  async updateProfile(userId: string, data: { name?: string; birthDate?: Date | null }) {
+    const user = this.users.find((item) => item.id === userId)!;
+    if (data.name !== undefined) user.name = data.name;
+    if (data.birthDate !== undefined) user.birthDate = data.birthDate;
+    return user;
+  }
+
+  async consumeEmailChangeOtp(input: { otpId: string; userId: string; newEmail: string }) {
+    const otp = this.otps.find((item) => item.id === input.otpId);
+    if (!otp || otp.usedAt) return 'EMAIL_TAKEN' as const;
+    if (this.users.some((user) => user.email === input.newEmail && user.id !== input.userId)) {
+      return 'EMAIL_TAKEN' as const;
+    }
+    otp.usedAt = NOW;
+    this.users.find((user) => user.id === input.userId)!.email = input.newEmail;
+    return 'SUCCESS' as const;
+  }
+
+  async updatePasswordAndRotateSession(input: {
+    userId: string;
+    passwordHash: string;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }) {
+    this.users.find((user) => user.id === input.userId)!.passwordHash = input.passwordHash;
+    for (const token of this.refreshTokens) {
+      if (token.user.id === input.userId && !token.revokedAt) token.revokedAt = input.now;
+    }
+    await this.createRefreshToken({
+      userId: input.userId,
+      tokenHash: input.newRefreshTokenHash,
+      expiresAt: input.newRefreshTokenExpiresAt,
+    });
+  }
+
+  async deleteUser(userId: string) {
+    this.users = this.users.filter((user) => user.id !== userId);
+  }
 }
 
 function setup() {
   const repository = new FakeAuthRepository();
   const sentEmails: Array<{ to: string; code: string; purpose: OtpPurpose }> = [];
+  const notifyAccountCreated = vi.fn(async () => undefined);
   const service = new AuthService({
     repository,
     mailer: {
@@ -229,9 +275,10 @@ function setup() {
     hashPassword: async (password) => `hash:${password}`,
     verifyPassword: async (hash, password) => hash === `hash:${password}`,
     createAccessToken: async (user) => `access:${user.id}`,
+    notifyAccountCreated,
     now: () => NOW,
   });
-  return { repository, sentEmails, service };
+  return { repository, sentEmails, notifyAccountCreated, service };
 }
 
 function seedOtp(
@@ -245,6 +292,7 @@ function seedOtp(
     userId: 'user-1',
     codeHash: hashToken(code),
     purpose,
+    newEmail: null,
     expiresAt: new Date(NOW.getTime() + 60_000),
     usedAt: null,
     attempts: 0,
@@ -285,7 +333,7 @@ describe('AuthService', () => {
   });
 
   it('valida OTP EMAIL_VERIFICATION e ativa a conta', async () => {
-    const { repository, service } = setup();
+    const { repository, notifyAccountCreated, service } = setup();
     repository.users.push(makeUser({ emailVerified: false, status: 'PENDING' }));
     seedOtp(repository, '482913', 'EMAIL_VERIFICATION');
     const result = await service.verifyOtp({
@@ -295,6 +343,7 @@ describe('AuthService', () => {
     });
     expect('accessToken' in result && result.accessToken).toBe('access:user-1');
     expect(repository.users[0]).toMatchObject({ emailVerified: true, status: 'ACTIVE' });
+    expect(notifyAccountCreated).toHaveBeenCalledWith('user-1');
   });
 
   it('rejeita OTP expirado', async () => {

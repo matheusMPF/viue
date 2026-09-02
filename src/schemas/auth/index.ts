@@ -2,9 +2,13 @@ import { z } from 'zod';
 
 import { normalizeEmail } from '@/utils/normalize-email';
 
-const EmailSchema = z.string().trim().email('Informe um e-mail válido.').transform(normalizeEmail);
+export const EmailSchema = z
+  .string()
+  .trim()
+  .email('Informe um e-mail válido.')
+  .transform(normalizeEmail);
 
-const PasswordSchema = z.string().min(8, 'A senha deve possuir pelo menos 8 caracteres.');
+export const PasswordSchema = z.string().min(8, 'A senha deve possuir pelo menos 8 caracteres.');
 
 export const OtpPurposeSchema = z.enum(['EMAIL_VERIFICATION', 'PASSWORD_RESET']);
 

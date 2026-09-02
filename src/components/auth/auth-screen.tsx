@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
@@ -149,8 +149,14 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
   );
 }
 
+function sanitizeNext(value: string | null): string {
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
 export function AuthScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = sanitizeNext(searchParams.get('next'));
   const showToast = useToast();
   const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
@@ -205,7 +211,7 @@ export function AuthScreen() {
         title: 'Login realizado',
         variant: 'success',
       });
-      router.replace('/');
+      router.replace(next);
       router.refresh();
     } catch (requestError) {
       if (
@@ -316,7 +322,7 @@ export function AuthScreen() {
           title: 'Conta validada',
           variant: 'success',
         });
-        router.replace('/');
+        router.replace(next);
         router.refresh();
       }
     } catch (requestError) {
@@ -371,7 +377,7 @@ export function AuthScreen() {
         title: data.message,
         variant: 'success',
       });
-      router.replace('/');
+      router.replace(next);
       router.refresh();
     } catch (requestError) {
       setError(getErrorMessage(requestError));

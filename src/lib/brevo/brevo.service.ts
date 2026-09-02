@@ -43,12 +43,16 @@ export class BrevoService implements OtpMailer {
     purpose: OtpPurpose;
   }): Promise<void> {
     this.assertConfigured();
-    const subject =
-      input.purpose === 'EMAIL_VERIFICATION'
-        ? 'Seu código de verificação do Viuê'
-        : 'Seu código para redefinir a senha no Viuê';
-    const action =
-      input.purpose === 'EMAIL_VERIFICATION' ? 'confirmar seu e-mail' : 'redefinir sua senha';
+    const subject = {
+      EMAIL_VERIFICATION: 'Seu código de verificação do Viuê',
+      PASSWORD_RESET: 'Seu código para redefinir a senha no Viuê',
+      EMAIL_CHANGE: 'Seu código para confirmar o novo e-mail no Viuê',
+    }[input.purpose];
+    const action = {
+      EMAIL_VERIFICATION: 'confirmar seu e-mail',
+      PASSWORD_RESET: 'redefinir sua senha',
+      EMAIL_CHANGE: 'confirmar seu novo e-mail',
+    }[input.purpose];
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {

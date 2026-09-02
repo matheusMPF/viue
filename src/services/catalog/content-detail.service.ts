@@ -1,19 +1,7 @@
 import { content_type, library_status } from '@/generated/prisma/enums';
 import { prisma } from '@/lib/db/client';
-
-async function getFriendIds(userId: string) {
-  const friendships = await prisma.tb_friendship.findMany({
-    where: {
-      status: 'ACCEPTED',
-      OR: [{ requester_id: userId }, { addressee_id: userId }],
-    },
-    select: { requester_id: true, addressee_id: true },
-  });
-
-  return friendships.map((friendship) =>
-    friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id,
-  );
-}
+import { notifyFriendContentRated } from '@/services/notifications/notification.service';
+import { getAcceptedFriendIds as getFriendIds } from '@/services/shared/friendships';
 
 export async function getContentDetail(contentId: string, userId: string) {
   const [content, friendIds] = await Promise.all([
@@ -35,18 +23,30 @@ export async function getContentDetail(contentId: string, userId: string) {
 
   if (!content) return null;
 
-  const friendRatings =
+  const isSeries = content.type === content_type.SERIES;
+
+  const [friendRatings, episodeRatingCount] = await Promise.all([
     friendIds.length > 0
-      ? await prisma.tb_user_content.findMany({
+      ? prisma.tb_user_content.findMany({
           where: { content_id: contentId, user_id: { in: friendIds }, rating: { not: null } },
           include: { tb_user: { select: { id: true, name: true, avatar_url: true } } },
           orderBy: { updated_at: 'desc' },
         })
-      : [];
+      : Promise.resolve([]),
+    isSeries
+      ? prisma.tb_user_episode.count({
+          where: {
+            user_id: userId,
+            rating: { not: null },
+            tb_episode: { tb_season: { series_id: contentId } },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
 
   return {
     id: content.id,
-    type: content.type === content_type.SERIES ? 'SERIES' : 'MOVIE',
+    type: isSeries ? 'SERIES' : 'MOVIE',
     title: content.title,
     originalTitle: content.original_title,
     overview: content.description,
@@ -55,6 +55,7 @@ export async function getContentDetail(contentId: string, userId: string) {
     releaseYear: content.release_date?.getUTCFullYear().toString() ?? null,
     rating: content.external_rating?.toString() ?? null,
     genres: content.tb_content_genre.map(({ tb_genre }) => tb_genre.name),
+    episodeRatingCount: isSeries ? episodeRatingCount : null,
     friendRatings: friendRatings.map((item) => ({
       id: item.tb_user.id,
       name: item.tb_user.name,
@@ -78,6 +79,11 @@ export async function updateUserContent(
   contentId: string,
   data: { status?: library_status; rating?: number | null; streaming?: string | null },
 ) {
+  const existing = await prisma.tb_user_content.findUnique({
+    where: { user_id_content_id: { user_id: userId, content_id: contentId } },
+    select: { rating: true },
+  });
+
   const userContent = await prisma.tb_user_content.upsert({
     where: { user_id_content_id: { user_id: userId, content_id: contentId } },
     create: {
@@ -92,6 +98,12 @@ export async function updateUserContent(
       updated_at: new Date(),
     },
   });
+
+  const isFirstRating = data.rating !== undefined && data.rating !== null && existing?.rating == null;
+  if (isFirstRating) {
+    await notifyFriendContentRated({ raterId: userId, contentId });
+  }
+
   if (data.streaming !== undefined) {
     await prisma.tb_user_content_streaming.deleteMany({
       where: { user_content_id: userContent.id },

@@ -2,13 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Bookmark, Compass, Home, LogOut, UsersRound } from 'lucide-react';
-import { useState } from 'react';
 
 import { Button } from '@/components/ui';
-import { useToast } from '@/hooks/use-toast';
-import { authFetch } from '@/lib/auth/auth-fetch';
+import { useLogout } from '@/hooks/use-logout';
 
 const navigationItems = [
   { href: '/', label: 'Início', icon: Home },
@@ -37,26 +35,7 @@ function NavigationLinks({ mobile = false }: { mobile?: boolean }) {
 }
 
 export function AppNavigation() {
-  const router = useRouter();
-  const showToast = useToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      await authFetch('/api/auth/logout', { method: 'POST' });
-      router.replace('/entrar');
-      router.refresh();
-    } catch {
-      showToast({
-        description: 'Tente novamente em alguns instantes.',
-        title: 'Não foi possível sair',
-        variant: 'error',
-      });
-    } finally {
-      setIsLoggingOut(false);
-    }
-  }
+  const { isLoggingOut, logout } = useLogout();
 
   return (
     <>
@@ -72,7 +51,7 @@ export function AppNavigation() {
           className="home-logout"
           isLoading={isLoggingOut}
           leftIcon={<LogOut aria-hidden="true" size={18} />}
-          onClick={handleLogout}
+          onClick={logout}
           variant="ghost"
         >
           Sair

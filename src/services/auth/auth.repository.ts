@@ -7,6 +7,8 @@ export type UserRecord = {
   passwordHash: string | null;
   emailVerified: boolean;
   status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'PENDING';
+  birthDate: Date | null;
+  createdAt: Date;
 };
 
 export type OtpRecord = {
@@ -14,10 +16,13 @@ export type OtpRecord = {
   userId: string;
   codeHash: string;
   purpose: OtpPurpose;
+  newEmail: string | null;
   expiresAt: Date;
   usedAt: Date | null;
   attempts: number;
 };
+
+export type ConsumeEmailChangeResult = 'SUCCESS' | 'EMAIL_TAKEN';
 
 export type RefreshTokenRecord = {
   id: string;
@@ -53,6 +58,7 @@ export interface AuthRepository {
     codeHash: string;
     purpose: OtpPurpose;
     expiresAt: Date;
+    newEmail?: string;
   }): Promise<OtpRecord>;
   findLatestOtp(userId: string, purpose: OtpPurpose): Promise<OtpRecord | null>;
   incrementOtpAttempts(otpId: string): Promise<number>;
@@ -83,4 +89,21 @@ export interface AuthRepository {
     newRefreshTokenExpiresAt: Date;
     now: Date;
   }): Promise<PasswordResetCompletion>;
+  updateProfile(
+    userId: string,
+    data: { name?: string; birthDate?: Date | null },
+  ): Promise<UserRecord>;
+  consumeEmailChangeOtp(input: {
+    otpId: string;
+    userId: string;
+    newEmail: string;
+  }): Promise<ConsumeEmailChangeResult>;
+  updatePasswordAndRotateSession(input: {
+    userId: string;
+    passwordHash: string;
+    newRefreshTokenHash: string;
+    newRefreshTokenExpiresAt: Date;
+    now: Date;
+  }): Promise<void>;
+  deleteUser(userId: string): Promise<void>;
 }

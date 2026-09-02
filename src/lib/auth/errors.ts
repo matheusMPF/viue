@@ -18,6 +18,7 @@ export type AuthErrorCode =
   | 'UNAUTHORIZED'
   | 'RATE_LIMIT_EXCEEDED'
   | 'EMAIL_NOT_FOUND'
+  | 'INVALID_CURRENT_PASSWORD'
   | 'INTERNAL_SERVER_ERROR';
 
 export class AuthError extends Error {
