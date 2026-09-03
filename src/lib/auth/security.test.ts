@@ -42,16 +42,22 @@ describe('segurança dos tokens web', () => {
   it('configura e limpa cookies HttpOnly com os caminhos corretos', () => {
     const response = NextResponse.json({ success: true });
     setAuthCookies(response, 'access', 'refresh');
-    const cookies = response.headers.getSetCookie().join(';');
+    const cookies = response.headers.getSetCookie();
+    const joined = cookies.join(';');
 
-    expect(cookies).toContain('viue_access_token=access');
-    expect(cookies).toContain('viue_refresh_token=refresh');
-    expect(cookies).toContain('HttpOnly');
-    expect(cookies).toContain('SameSite=lax');
-    expect(cookies).toContain('Path=/api/auth');
+    expect(joined).toContain('viue_access_token=access');
+    expect(joined).toContain('viue_refresh_token=refresh');
+    expect(joined).toContain('HttpOnly');
+    expect(joined).toContain('SameSite=lax');
+    // path '/' (não restrito a '/api/auth') para que o proxy consiga ler o
+    // refresh token em requisições de página e renovar a sessão silenciosamente.
+    expect(cookies.some((cookie) => cookie.includes('viue_refresh_token') && cookie.includes('Path=/') && !cookie.includes('Path=/api'))).toBe(true);
 
     const logoutResponse = NextResponse.json({ success: true });
     clearAuthCookies(logoutResponse);
-    expect(logoutResponse.headers.getSetCookie().join(';')).toContain('Max-Age=0');
+    const logoutCookies = logoutResponse.headers.getSetCookie().join(';');
+    expect(logoutCookies).toContain('Max-Age=0');
+    // Também expira o cookie do path legado, para sessões criadas antes da mudança.
+    expect(logoutCookies).toContain('Path=/api/auth');
   });
 });

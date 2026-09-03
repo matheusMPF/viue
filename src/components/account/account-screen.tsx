@@ -5,19 +5,25 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  CalendarDays,
   KeyRound,
   Mail,
   ShieldAlert,
   Trash2,
   UserRound,
 } from 'lucide-react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useState } from 'react';
 
 import { AppNavigation } from '@/components/layout/app-navigation';
-import { Button, Input } from '@/components/ui';
+import { Button, ConfirmDialog, Input } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import {
+  formatBirthDateForDisplay,
+  maskBirthDateInput,
+  parseBirthDateInput,
+} from '@/lib/utils/birth-date';
 
 export type AccountProfileDto = {
   id: string;
@@ -29,6 +35,14 @@ export type AccountProfileDto = {
 
 function formatMemberSince(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase();
 }
 
 async function readJson(response: Response) {
@@ -46,19 +60,34 @@ function ProfileSection({
 }) {
   const showToast = useToast();
   const [name, setName] = useState(profile.name);
-  const [birthDate, setBirthDate] = useState(profile.birthDate ?? '');
+  const [birthDateDisplay, setBirthDateDisplay] = useState(
+    formatBirthDateForDisplay(profile.birthDate),
+  );
+  const [birthDateError, setBirthDateError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function handleBirthDateChange(event: ChangeEvent<HTMLInputElement>) {
+    setBirthDateDisplay(maskBirthDateInput(event.target.value));
+    setBirthDateError(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
     setError(null);
+
+    const birthDateIso = birthDateDisplay ? parseBirthDateInput(birthDateDisplay) : null;
+    if (birthDateDisplay && !birthDateIso) {
+      setBirthDateError('Informe uma data de nascimento válida.');
+      return;
+    }
+
+    setIsSaving(true);
     try {
       const response = await authFetch('/api/user/me', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), birthDate: birthDate || null }),
+        body: JSON.stringify({ name: name.trim(), birthDate: birthDateIso }),
       });
       const data = await readJson(response);
       onProfileUpdate(data.profile);
@@ -93,11 +122,15 @@ function ProfileSection({
           value={name}
         />
         <Input
-          error={error ?? undefined}
+          description="Dia, mês e ano."
+          error={birthDateError ?? error ?? undefined}
+          inputMode="numeric"
           label="Data de nascimento"
-          onChange={(event) => setBirthDate(event.target.value)}
-          type="date"
-          value={birthDate}
+          leftElement={<CalendarDays aria-hidden="true" size={18} strokeWidth={1.8} />}
+          maxLength={10}
+          onChange={handleBirthDateChange}
+          placeholder="DD/MM/AAAA"
+          value={birthDateDisplay}
         />
         <Button isLoading={isSaving} type="submit">
           Salvar
@@ -325,26 +358,23 @@ function PasswordSection() {
 
 function DangerZoneSection() {
   const router = useRouter();
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [password, setPassword] = useState('');
+  const showToast = useToast();
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function handleDelete(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleDelete() {
     setIsDeleting(true);
-    setError(null);
     try {
-      const response = await authFetch('/api/user/me', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
+      const response = await authFetch('/api/user/me', { method: 'DELETE' });
       await readJson(response);
       router.replace('/entrar');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível excluir a conta.');
+      showToast({
+        title: 'Não foi possível excluir a conta.',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'error',
+      });
       setIsDeleting(false);
     }
   }
@@ -366,38 +396,20 @@ function DangerZoneSection() {
         </div>
       </div>
 
-      {!isConfirming ? (
-        <Button onClick={() => setIsConfirming(true)} type="button" variant="danger">
-          <Trash2 aria-hidden="true" size={17} /> Excluir conta
-        </Button>
-      ) : (
-        <form className="account-form" onSubmit={handleDelete}>
-          <Input
-            error={error ?? undefined}
-            label="Digite sua senha para confirmar"
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            type="password"
-            value={password}
-          />
-          <div className="account-form-actions">
-            <Button isLoading={isDeleting} type="submit" variant="danger">
-              Confirmar exclusão
-            </Button>
-            <Button
-              onClick={() => {
-                setIsConfirming(false);
-                setPassword('');
-                setError(null);
-              }}
-              type="button"
-              variant="ghost"
-            >
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      )}
+      <Button onClick={() => setIsConfirmOpen(true)} type="button" variant="danger">
+        <Trash2 aria-hidden="true" size={17} /> Excluir conta
+      </Button>
+
+      <ConfirmDialog
+        confirmLabel="Excluir conta"
+        confirmVariant="danger"
+        description="Essa ação é permanente. Todos os seus dados, avaliações, amizades e salas que você criou serão removidos e não poderão ser recuperados."
+        isConfirming={isDeleting}
+        onConfirm={handleDelete}
+        onOpenChange={setIsConfirmOpen}
+        open={isConfirmOpen}
+        title="Excluir sua conta?"
+      />
     </section>
   );
 }
@@ -418,9 +430,16 @@ export function AccountScreen({ initialProfile }: { initialProfile: AccountProfi
           </header>
 
           <section className="account-heading">
-            <span className="home-kicker">Sua conta</span>
-            <h1>Minha conta</h1>
-            <p>Gerencie seus dados, e-mail, senha e privacidade.</p>
+            <div className="account-heading-top">
+              <div>
+                <span className="home-kicker">Sua conta</span>
+                <h1>Minha conta</h1>
+                <p>Gerencie seus dados, e-mail, senha e privacidade.</p>
+              </div>
+              <span aria-hidden="true" className="account-avatar">
+                {getInitials(profile.name)}
+              </span>
+            </div>
           </section>
 
           <div className="account-sections">

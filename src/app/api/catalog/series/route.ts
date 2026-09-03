@@ -7,7 +7,7 @@ import {
   type SeriesCatalogKind,
 } from '@/services/catalog/series-catalog.service';
 
-const catalogKinds = new Set<SeriesCatalogKind>(['top-rated', 'search']);
+const catalogKinds = new Set<SeriesCatalogKind>(['discover', 'top-rated', 'search']);
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,8 +22,10 @@ export async function GET(request: NextRequest) {
     const limit = Number.isInteger(limitParam) ? limitParam : 10;
     const pageParam = Number(request.nextUrl.searchParams.get('page') ?? '1');
     const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+    const genreParam = Number(request.nextUrl.searchParams.get('genre') ?? '');
+    const genreId = Number.isInteger(genreParam) && genreParam > 0 ? genreParam : undefined;
 
-    const catalog = await getSeriesCatalog({ kind, limit, page, query });
+    const catalog = await getSeriesCatalog({ genreId, kind, limit, page, query });
     return successResponse(catalog);
   } catch (error) {
     return errorResponse(error);

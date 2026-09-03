@@ -7,17 +7,19 @@ import { Bookmark, Star, UsersRound } from 'lucide-react';
 import type { CatalogMovie } from '@/services/tmdb/tmdb.types';
 
 export function MoviePosterCard({
+  fallbackLabel = 'Filme',
   friendsWatched,
   item,
   saved,
   onToggleSaved,
 }: {
+  fallbackLabel?: string;
   friendsWatched: number;
   item: CatalogMovie;
   saved: boolean;
   onToggleSaved?: (title: string) => void;
 }) {
-  const meta = [item.genres[0], item.releaseYear].filter(Boolean).join(' - ') || 'Filme';
+  const meta = [item.genres[0], item.releaseYear].filter(Boolean).join(' - ') || fallbackLabel;
 
   return (
     <article className="title-card" role="listitem">

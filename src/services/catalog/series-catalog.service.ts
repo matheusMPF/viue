@@ -1,6 +1,7 @@
 import { content_type } from '@/generated/prisma/enums';
 import { prisma } from '@/lib/db/client';
 import {
+  discoverTmdbSeries,
   discoverTopRatedTmdbSeries,
   getTmdbImageUrl,
   getTmdbSeriesGenres,
@@ -12,10 +13,11 @@ const TMDB_TV_SOURCE = 'TMDB_TV';
 const DEFAULT_SERIES_PER_REQUEST = 10;
 const MAX_SERIES_PER_REQUEST = 30;
 
-export type SeriesCatalogKind = 'top-rated' | 'search';
+export type SeriesCatalogKind = 'discover' | 'top-rated' | 'search';
 
 type SeriesCatalogOptions = {
   kind?: SeriesCatalogKind;
+  genreId?: number;
   limit?: number;
   page?: number;
   query?: string;
@@ -143,20 +145,27 @@ async function upsertSeries(series: TmdbTvSummary, genresByTmdbId: Map<number, T
   });
 }
 
-function getTmdbSeriesByKind(kind: SeriesCatalogKind, query: string, page: number) {
+function getTmdbSeriesByKind(
+  kind: SeriesCatalogKind,
+  query: string,
+  page: number,
+  genreId?: number,
+) {
   if (kind === 'search' || query.trim()) return searchTmdbSeries(query, page);
+  if (kind === 'discover') return discoverTmdbSeries(page, genreId);
   return discoverTopRatedTmdbSeries(page);
 }
 
 export async function getSeriesCatalog({
   kind = 'top-rated',
+  genreId,
   limit = DEFAULT_SERIES_PER_REQUEST,
   page = 1,
   query = '',
 }: SeriesCatalogOptions = {}) {
   const [genresResponse, seriesResponse] = await Promise.all([
     getTmdbSeriesGenres(),
-    getTmdbSeriesByKind(kind, query, page),
+    getTmdbSeriesByKind(kind, query, page, genreId),
   ]);
   const genresByTmdbId = new Map(genresResponse.genres.map((genre) => [genre.id, genre]));
   const boundedLimit = Math.min(Math.max(limit, 1), MAX_SERIES_PER_REQUEST);

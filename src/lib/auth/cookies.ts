@@ -21,11 +21,13 @@ export function setAuthCookies(
     path: '/',
     maxAge: ACCESS_TOKEN_TTL_SECONDS,
   });
+  // path: '/' (não só '/api/auth') para que `proxy.ts` consiga renovar a sessão
+  // silenciosamente em requisições de página, sem precisar de um refresh via cliente.
   response.cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
     secure,
     sameSite: 'lax',
-    path: '/api/auth',
+    path: '/',
     maxAge: REFRESH_TOKEN_TTL_SECONDS,
   });
 }
@@ -48,6 +50,15 @@ export function clearAuthCookies(response: NextResponse): void {
     path: '/',
     maxAge: 0,
   });
+  response.cookies.set(REFRESH_TOKEN_COOKIE, '', {
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+  // Compat: também expira o cookie com o path antigo ('/api/auth'), caso o
+  // navegador ainda guarde um refresh token emitido antes dessa mudança.
   response.cookies.set(REFRESH_TOKEN_COOKIE, '', {
     httpOnly: true,
     secure,

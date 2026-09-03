@@ -26,7 +26,6 @@ import type {
 import type {
   ChangePasswordInput,
   ConfirmEmailChangeInput,
-  DeleteAccountInput,
   RequestEmailChangeInput,
   UpdateProfileInput,
 } from '@/schemas/account';
@@ -377,14 +376,8 @@ export class AuthService {
     };
   }
 
-  async deleteAccount(userId: string, input: DeleteAccountInput): Promise<void> {
-    const user = await this.requireUser(userId);
-    if (
-      !user.passwordHash ||
-      !(await this.dependencies.verifyPassword(user.passwordHash, input.password))
-    ) {
-      throw new AuthError('INVALID_CREDENTIALS', 'Senha incorreta.', 401);
-    }
+  async deleteAccount(userId: string): Promise<void> {
+    await this.requireUser(userId);
     await this.dependencies.repository.deleteUser(userId);
   }
 

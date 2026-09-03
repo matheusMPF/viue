@@ -220,6 +220,150 @@ button {
   }
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(4 2 10 / 64%);
+  backdrop-filter: blur(6px);
+  animation: modal-overlay-enter 160ms ease-out both;
+}
+
+.modal-content {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-height: min(88vh, 640px);
+  flex-direction: column;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -12px 50px rgb(4 2 10 / 46%);
+  outline: none;
+  animation: modal-sheet-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 0;
+}
+
+.modal-title {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.modal-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--elevated);
+  color: var(--foreground);
+}
+
+.modal-body {
+  padding: 12px 20px 20px;
+}
+
+.modal-description {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.modal-footer {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  padding: 0 20px max(20px, env(safe-area-inset-bottom, 20px));
+}
+
+.modal-footer > * {
+  width: 100%;
+}
+
+@keyframes modal-overlay-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-sheet-enter {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes modal-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (min-width: 1024px) {
+  .modal-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .modal-content {
+    width: min(100%, 440px);
+    max-height: min(85vh, 560px);
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgb(4 2 10 / 50%);
+    animation: modal-dialog-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .modal-content-sm {
+    width: min(100%, 400px);
+  }
+
+  .modal-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    padding-bottom: 20px;
+  }
+
+  .modal-footer > * {
+    width: auto;
+  }
+}
+
 .auth-stage {
   position: relative;
   display: grid;
@@ -2135,6 +2279,7 @@ button {
 }
 .discover-genre-carousel {
   position: relative;
+  padding-inline: 48px;
 }
 .discover-genre-arrow {
   position: absolute;
@@ -2152,11 +2297,9 @@ button {
 }
 .discover-genre-arrow.is-left {
   left: 0;
-  transform: translateX(-50%);
 }
 .discover-genre-arrow.is-right {
   right: 0;
-  transform: translateX(50%);
 }
 .discover-genre-arrow:hover {
   border-color: var(--primary);
@@ -2239,6 +2382,10 @@ button {
 @media (max-width: 700px) {
   .discover-genre-arrow {
     display: none;
+  }
+
+  .discover-genre-carousel {
+    padding-inline: 0;
   }
 
   .discover-genre-list {
@@ -3837,6 +3984,13 @@ button.catalog-back {
   padding: 28px 0 8px;
 }
 
+.account-heading-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .account-heading h1 {
   margin: 6px 0 8px;
   font-size: 1.7rem;
@@ -3846,6 +4000,20 @@ button.catalog-back {
   margin: 0;
   color: var(--muted-foreground);
   font-size: 0.85rem;
+}
+
+.account-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 
 .account-sections {
@@ -3889,6 +4057,22 @@ button.catalog-back {
   gap: 10px;
 }
 
+@media (max-width: 699px) {
+  .account-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .account-form-actions {
+    flex-direction: column;
+  }
+
+  .account-form-actions > * {
+    width: 100%;
+  }
+}
+
 @media (min-width: 700px) {
   .account-heading h1 {
     font-size: 2.1rem;
@@ -3920,6 +4104,11 @@ button.catalog-back {
   }
 
   .session-renewal-spinner {
+    animation: none;
+  }
+
+  .modal-overlay,
+  .modal-content {
     animation: none;
   }
 }

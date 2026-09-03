@@ -134,6 +134,19 @@ export function searchTmdbSeries(query: string, page = 1) {
   });
 }
 
+export function discoverTmdbSeries(page = 1, genreId?: number) {
+  return tmdbRequest<TmdbTvSearchResponse>('/discover/tv', {
+    params: {
+      include_adult: false,
+      include_null_first_air_dates: false,
+      page,
+      sort_by: 'popularity.desc',
+      with_genres: genreId,
+    },
+    revalidate: 60 * 30,
+  });
+}
+
 export function discoverTopRatedTmdbSeries(page = 1) {
   return tmdbRequest<TmdbTvSearchResponse>('/discover/tv', {
     params: {

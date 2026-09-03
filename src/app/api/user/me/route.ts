@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from '@/lib/auth/authenticated-user';
 import { clearAuthCookies, setAccessTokenCookie } from '@/lib/auth/cookies';
 import { errorResponse, parseBody, successResponse } from '@/lib/auth/http';
 import { enforceRateLimit } from '@/lib/auth/rate-limiter';
-import { DeleteAccountSchema, UpdateProfileSchema } from '@/schemas/account';
+import { UpdateProfileSchema } from '@/schemas/account';
 import { authService } from '@/services/auth';
 
 export async function GET() {
@@ -33,8 +33,7 @@ export async function DELETE(request: Request) {
   try {
     await enforceRateLimit(request, 'account:deleteAccount', RATE_LIMITS.deleteAccount);
     const user = await getAuthenticatedUser();
-    const input = await parseBody(request, DeleteAccountSchema);
-    await authService.deleteAccount(user.id, input);
+    await authService.deleteAccount(user.id);
     const response = successResponse({ message: 'Conta excluída.' });
     clearAuthCookies(response);
     return response;
