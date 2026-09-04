@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Film, Play, Star, Tv, UsersRound } from 'lucide-react';
 
 import { Tabs } from '@/components/ui';
-import { AppNavigation } from '@/components/layout/app-navigation';
+import type { ProfileSlug } from '@/lib/profile/profiles';
 
 type LibraryItem = {
   id: string;
@@ -32,12 +32,12 @@ const streamingLogos: Record<string, string> = {
   Crunchyroll: '/streamings/crunchyroll.svg',
 };
 
-function LibraryCard({ item }: { item: LibraryItem }) {
+function LibraryCard({ item, profile }: { item: LibraryItem; profile: ProfileSlug }) {
   const streamingLogo = item.streaming ? streamingLogos[item.streaming] : null;
 
   return (
     <article className="library-card" role="listitem">
-      <Link href={`/titulo/${item.id}`} aria-label={`Ver detalhes de ${item.title}`}>
+      <Link href={`/${profile}/titulo/${item.id}`} aria-label={`Ver detalhes de ${item.title}`}>
         <div className="library-card-poster">
           {item.posterUrl ? (
             <Image
@@ -83,73 +83,86 @@ function LibraryCard({ item }: { item: LibraryItem }) {
   );
 }
 
-function LibraryGrid({ items, emptyMessage }: { items: LibraryItem[]; emptyMessage: string }) {
+function LibraryGrid({
+  emptyMessage,
+  items,
+  profile,
+}: {
+  emptyMessage: string;
+  items: LibraryItem[];
+  profile: ProfileSlug;
+}) {
   return items.length > 0 ? (
     <div className="library-grid" role="list">
       {items.map((item) => (
-        <LibraryCard item={item} key={item.id} />
+        <LibraryCard item={item} key={item.id} profile={profile} />
       ))}
     </div>
   ) : (
     <div className="library-empty">
       <Film aria-hidden="true" size={28} />
       <p>{emptyMessage}</p>
-      <Link href="/">Explorar catálogo</Link>
+      <Link href={`/${profile}`}>Explorar catálogo</Link>
     </div>
   );
 }
 
-export function LibraryScreen({ initialItems }: { initialItems: LibraryItem[] }) {
+export function LibraryScreen({
+  initialItems,
+  profile,
+}: {
+  initialItems: LibraryItem[];
+  profile: ProfileSlug;
+}) {
   const movies = initialItems.filter((item) => item.type === 'MOVIE');
   const series = initialItems.filter((item) => item.type === 'SERIES');
 
   return (
-    <div className="home-app">
-      <AppNavigation />
-      <div className="home-workspace">
-        <main className="library-page">
-          <header className="catalog-header">
-            <Link className="catalog-back" href="/">
-              <ArrowLeft aria-hidden="true" size={18} /> Voltar
-            </Link>
-            <Image alt="" height={42} priority src="/brand/viue-symbol.png" width={42} />
-          </header>
-          <section className="library-heading">
-            <span className="home-kicker">Seu espaço</span>
-            <h1>Minha lista</h1>
-            <p>Os títulos que você guardou e onde pretende assistir.</p>
-          </section>
-          <section className="library-content" aria-label="Conteúdo salvo">
-            <Tabs
-              ariaLabel="Filtrar minha lista"
-              items={[
-                {
-                  content: (
-                    <LibraryGrid
-                      emptyMessage="Você ainda não adicionou nenhum filme."
-                      items={movies}
-                    />
-                  ),
-                  icon: <Film aria-hidden="true" size={17} />,
-                  label: `Filmes (${movies.length})`,
-                  value: 'movies',
-                },
-                {
-                  content: (
-                    <LibraryGrid
-                      emptyMessage="Você ainda não adicionou nenhuma série."
-                      items={series}
-                    />
-                  ),
-                  icon: <Tv aria-hidden="true" size={17} />,
-                  label: `Séries (${series.length})`,
-                  value: 'series',
-                },
-              ]}
-            />
-          </section>
-        </main>
-      </div>
+    <div className="home-workspace">
+      <main className="library-page">
+        <header className="catalog-header">
+          <Link className="catalog-back" href={`/${profile}`}>
+            <ArrowLeft aria-hidden="true" size={18} /> Voltar
+          </Link>
+          <Image alt="" height={42} priority src="/brand/viue-symbol.png" width={42} />
+        </header>
+        <section className="library-heading">
+          <span className="home-kicker">Seu espaço</span>
+          <h1>Minha lista</h1>
+          <p>Os títulos que você guardou e onde pretende assistir.</p>
+        </section>
+        <section className="library-content" aria-label="Conteúdo salvo">
+          <Tabs
+            ariaLabel="Filtrar minha lista"
+            items={[
+              {
+                content: (
+                  <LibraryGrid
+                    emptyMessage="Você ainda não adicionou nenhum filme."
+                    items={movies}
+                    profile={profile}
+                  />
+                ),
+                icon: <Film aria-hidden="true" size={17} />,
+                label: `Filmes (${movies.length})`,
+                value: 'movies',
+              },
+              {
+                content: (
+                  <LibraryGrid
+                    emptyMessage="Você ainda não adicionou nenhuma série."
+                    items={series}
+                    profile={profile}
+                  />
+                ),
+                icon: <Tv aria-hidden="true" size={17} />,
+                label: `Séries (${series.length})`,
+                value: 'series',
+              },
+            ]}
+          />
+        </section>
+      </main>
     </div>
   );
 }

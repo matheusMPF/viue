@@ -177,7 +177,11 @@ export async function getSeasonEpisodes(contentId: string, seasonNumber: number,
   }));
 }
 
-export async function updateEpisodeRating(userId: string, episodeId: string, rating: number | null) {
+export async function updateEpisodeRating(
+  userId: string,
+  episodeId: string,
+  rating: number | null,
+) {
   const episode = await prisma.tb_episode.findUnique({
     where: { id: episodeId },
     include: { tb_season: { select: { series_id: true } } },

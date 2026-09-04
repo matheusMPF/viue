@@ -6,13 +6,14 @@ import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
 import { MoviePosterCard } from '@/components/catalog/movie-poster-card';
-import { AppNavigation } from '@/components/layout/app-navigation';
 import { Button } from '@/components/ui';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import type { ProfileSlug } from '@/lib/profile/profiles';
 import type { CatalogSeries } from '@/services/tmdb/tmdb.types';
 
 type SeriesListingScreenProps = {
   initialItems: CatalogSeries[];
+  profile: ProfileSlug;
   title: string;
   totalPages: number;
   totalResults: number;
@@ -24,6 +25,7 @@ function getCatalogError(error: unknown) {
 
 export function SeriesListingScreen({
   initialItems,
+  profile,
   title,
   totalPages,
   totalResults,
@@ -75,60 +77,56 @@ export function SeriesListingScreen({
   }
 
   return (
-    <div className="home-app">
-      <AppNavigation />
-      <div className="home-workspace">
-        <main className="catalog-page">
-          <header className="catalog-header">
-            <Link className="catalog-back" href="/">
-              <ArrowLeft aria-hidden="true" size={18} /> Voltar
-            </Link>
-            <Image alt="" height={42} priority src="/brand/viue-symbol.png" width={42} />
-          </header>
+    <div className="home-workspace">
+      <main className="catalog-page">
+        <header className="catalog-header">
+          <Link className="catalog-back" href={`/${profile}`}>
+            <ArrowLeft aria-hidden="true" size={18} /> Voltar
+          </Link>
+          <Image alt="" height={42} priority src="/brand/viue-symbol.png" width={42} />
+        </header>
 
-          <section className="catalog-hero" aria-labelledby="catalog-title">
-            <span className="home-kicker">Catalogo TMDb</span>
-            <h1 id="catalog-title">{title}</h1>
-            <p>
-              {totalResults.toLocaleString('pt-BR')} series encontradas pela curadoria de notas.
+        <section className="catalog-hero" aria-labelledby="catalog-title">
+          <span className="home-kicker">Catalogo TMDb</span>
+          <h1 id="catalog-title">{title}</h1>
+          <p>{totalResults.toLocaleString('pt-BR')} series encontradas pela curadoria de notas.</p>
+        </section>
+
+        <section className="catalog-grid-section" aria-label={title}>
+          <div className="catalog-movie-grid" role="list">
+            {items.map((item) => (
+              <MoviePosterCard
+                friendsWatched={0}
+                item={item}
+                key={`${item.id}-${item.tmdbId}`}
+                onToggleSaved={toggleSaved}
+                profile={profile}
+                saved={savedTitles.includes(item.title)}
+              />
+            ))}
+          </div>
+
+          {error ? (
+            <p className="home-empty is-error" role="alert">
+              {error}
             </p>
-          </section>
+          ) : null}
 
-          <section className="catalog-grid-section" aria-label={title}>
-            <div className="catalog-movie-grid" role="list">
-              {items.map((item) => (
-                <MoviePosterCard
-                  friendsWatched={0}
-                  item={item}
-                  key={`${item.id}-${item.tmdbId}`}
-                  onToggleSaved={toggleSaved}
-                  saved={savedTitles.includes(item.title)}
-                />
-              ))}
+          {canLoadMore ? (
+            <div className="catalog-load-more">
+              <Button
+                disabled={isLoadingMore}
+                isLoading={isLoadingMore}
+                onClick={handleLoadMore}
+                size="lg"
+                variant="ghost"
+              >
+                Ver mais
+              </Button>
             </div>
-
-            {error ? (
-              <p className="home-empty is-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-
-            {canLoadMore ? (
-              <div className="catalog-load-more">
-                <Button
-                  disabled={isLoadingMore}
-                  isLoading={isLoadingMore}
-                  onClick={handleLoadMore}
-                  size="lg"
-                  variant="ghost"
-                >
-                  Ver mais
-                </Button>
-              </div>
-            ) : null}
-          </section>
-        </main>
-      </div>
+          ) : null}
+        </section>
+      </main>
     </div>
   );
 }

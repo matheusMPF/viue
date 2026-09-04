@@ -19,6 +19,7 @@ import { AppNavigation } from '@/components/layout/app-navigation';
 import { Button, ConfirmDialog, Input } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
 import {
   formatBirthDateForDisplay,
   maskBirthDateInput,
@@ -175,7 +176,11 @@ function EmailSection({
       });
       await readJson(response);
       setStep('confirm');
-      showToast({ title: 'Código enviado.', description: `Confira ${newEmail}.`, variant: 'success' });
+      showToast({
+        title: 'Código enviado.',
+        description: `Confira ${newEmail}.`,
+        variant: 'success',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível enviar o código.');
     } finally {
@@ -419,11 +424,11 @@ export function AccountScreen({ initialProfile }: { initialProfile: AccountProfi
 
   return (
     <div className="home-app">
-      <AppNavigation />
+      <AppNavigation profile={DEFAULT_PROFILE_SLUG} />
       <div className="home-workspace">
         <main className="account-page">
           <header className="catalog-header">
-            <Link className="catalog-back" href="/">
+            <Link className="catalog-back" href={`/${DEFAULT_PROFILE_SLUG}`}>
               <ArrowLeft aria-hidden="true" size={18} /> Voltar
             </Link>
             <Image alt="" height={42} priority src="/brand/viue-symbol.png" width={42} />

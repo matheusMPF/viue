@@ -20,6 +20,7 @@ import { AppNavigation } from '@/components/layout/app-navigation';
 import { Button } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
 
 type Person = {
   id: string;
@@ -258,7 +259,7 @@ export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
 
   return (
     <div className="home-app">
-      <AppNavigation />
+      <AppNavigation profile={DEFAULT_PROFILE_SLUG} />
       <div className="home-workspace">
         <main className="room-page">
           <Link className="catalog-back" href="/comunidade">
@@ -292,10 +293,7 @@ export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
                           inviteCandidates: current.inviteCandidates.filter(
                             (candidate) => candidate.id !== friend.id,
                           ),
-                          participants: [
-                            ...current.participants,
-                            { ...friend, avatar_url: null },
-                          ],
+                          participants: [...current.participants, { ...friend, avatar_url: null }],
                         }))
                       }
                       roomId={room.id}
@@ -378,7 +376,7 @@ export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
                   {room.matches.map((match) => (
                     <Link
                       className="room-match-card"
-                      href={`/titulo/${match.id}`}
+                      href={`/${DEFAULT_PROFILE_SLUG}/titulo/${match.id}`}
                       key={match.id}
                       role="listitem"
                     >

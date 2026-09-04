@@ -18,6 +18,7 @@ import { AppNavigation } from '@/components/layout/app-navigation';
 import { Button, Input, Tabs } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
 
 type Person = {
   id: string;
@@ -512,7 +513,7 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
 
   return (
     <div className="home-app">
-      <AppNavigation />
+      <AppNavigation profile={DEFAULT_PROFILE_SLUG} />
       <div className="home-workspace">
         <main className="community-page">
           <header className="community-hero">

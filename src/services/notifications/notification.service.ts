@@ -1,6 +1,7 @@
 import { notification_type } from '@/generated/prisma/enums';
 import { AuthError } from '@/lib/auth/errors';
 import { prisma } from '@/lib/db';
+import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
 import { getAcceptedFriendIds } from '@/services/shared/friendships';
 
 function notificationError(message: string, status = 400) {
@@ -157,7 +158,7 @@ export async function notifyFriendContentRated({
         message: `${rater.name} avaliou ${content.title}, que está na sua lista.`,
         actorId: raterId,
         contentId,
-        actionUrl: `/titulo/${contentId}`,
+        actionUrl: `/${DEFAULT_PROFILE_SLUG}/titulo/${contentId}`,
       }),
     ),
   );

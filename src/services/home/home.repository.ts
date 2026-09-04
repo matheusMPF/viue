@@ -31,7 +31,12 @@ export async function getHomeSocialContext(userId: string): Promise<HomeSocialCo
   );
 
   if (friendIds.length === 0) {
-    return { friendCount: 0, pendingFriendRequestCount, unreadNotificationCount, watchedByTitle: {} };
+    return {
+      friendCount: 0,
+      pendingFriendRequestCount,
+      unreadNotificationCount,
+      watchedByTitle: {},
+    };
   }
 
   const completedContent = await prisma.tb_user_content.groupBy({

@@ -8,10 +8,7 @@ import { useState } from 'react';
 import { authFetch } from '@/lib/auth/auth-fetch';
 
 type NotificationType =
-  | 'ACCOUNT_CREATED'
-  | 'FRIEND_REQUEST_RECEIVED'
-  | 'FRIEND_CONTENT_RATED'
-  | 'ROOM_INVITE_RECEIVED';
+  'ACCOUNT_CREATED' | 'FRIEND_REQUEST_RECEIVED' | 'FRIEND_CONTENT_RATED' | 'ROOM_INVITE_RECEIVED';
 
 type NotificationItem = {
   id: string;

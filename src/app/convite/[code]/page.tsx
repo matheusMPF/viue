@@ -5,11 +5,7 @@ import { redirect } from 'next/navigation';
 import { getAuthenticatedUser } from '@/lib/auth/authenticated-user';
 import { joinRoomByInviteCode } from '@/services/community/community.service';
 
-export default async function RoomInvitePage({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
+export default async function RoomInvitePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const user = await getAuthenticatedUser().catch(() => null);
   if (!user) redirect(`/entrar?next=/convite/${code}`);

@@ -99,7 +99,8 @@ export async function updateUserContent(
     },
   });
 
-  const isFirstRating = data.rating !== undefined && data.rating !== null && existing?.rating == null;
+  const isFirstRating =
+    data.rating !== undefined && data.rating !== null && existing?.rating == null;
   if (isFirstRating) {
     await notifyFriendContentRated({ raterId: userId, contentId });
   }

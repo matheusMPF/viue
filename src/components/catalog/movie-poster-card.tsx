@@ -4,18 +4,21 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Bookmark, Star, UsersRound } from 'lucide-react';
 
+import type { ProfileSlug } from '@/lib/profile/profiles';
 import type { CatalogMovie } from '@/services/tmdb/tmdb.types';
 
 export function MoviePosterCard({
   fallbackLabel = 'Filme',
   friendsWatched,
   item,
+  profile,
   saved,
   onToggleSaved,
 }: {
   fallbackLabel?: string;
   friendsWatched: number;
   item: CatalogMovie;
+  profile: ProfileSlug;
   saved: boolean;
   onToggleSaved?: (title: string) => void;
 }) {
@@ -25,7 +28,7 @@ export function MoviePosterCard({
     <article className="title-card" role="listitem">
       <Link
         className="title-card-link"
-        href={`/titulo/${item.id}`}
+        href={`/${profile}/titulo/${item.id}`}
         aria-label={`Ver detalhes de ${item.title}`}
       >
         <div className="title-cover title-cover-image">

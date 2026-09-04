@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Tabs } from '@/components/ui';
 import { authFetch } from '@/lib/auth/auth-fetch';
 import { useToast } from '@/hooks/use-toast';
+import type { ProfileSlug } from '@/lib/profile/profiles';
 
 type Content = {
   id: string;
@@ -158,7 +159,13 @@ const streamingOptions = [
 
 const knownStreamingNames = new Set<string>(streamingOptions.map((option) => option.name));
 
-export function ContentDetailScreen({ initialContent }: { initialContent: Content }) {
+export function ContentDetailScreen({
+  initialContent,
+  profile,
+}: {
+  initialContent: Content;
+  profile: ProfileSlug;
+}) {
   const router = useRouter();
   const savedStreaming = initialContent.library?.streaming ?? '';
   const [content, setContent] = useState(initialContent);
@@ -316,7 +323,7 @@ export function ContentDetailScreen({ initialContent }: { initialContent: Conten
       return;
     }
 
-    router.replace('/');
+    router.replace(`/${profile}`);
   }
 
   return (
@@ -403,9 +410,7 @@ export function ContentDetailScreen({ initialContent }: { initialContent: Conten
                         aria-invalid={rating.length > 0 && !ratingIsValid}
                         id="content-rating"
                         inputMode="decimal"
-                        onChange={(event) =>
-                          setRating(event.target.value.replace(/[^0-9.,]/g, ''))
-                        }
+                        onChange={(event) => setRating(event.target.value.replace(/[^0-9.,]/g, ''))}
                         placeholder="9,6"
                         type="text"
                         value={rating}

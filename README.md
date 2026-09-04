@@ -101,7 +101,7 @@ O módulo usa senha com Argon2id, OTP de seis dígitos, access token JWT de 15 m
 Endpoints públicos:
 
 | Endpoint                         | Corpo JSON                  | Resultado                                 |
-| --------------------------------- | ---------------------------- | ------------------------------------------- |
+| -------------------------------- | --------------------------- | ----------------------------------------- |
 | `POST /api/auth/register`        | `name`, `email`, `password` | Cria conta `PENDING` e envia OTP          |
 | `POST /api/auth/verify-otp`      | `email`, `code`, `purpose`  | Ativa a conta ou emite reset token        |
 | `POST /api/auth/resend-otp`      | `email`, `purpose`          | Invalida e reenvia o OTP do mesmo fluxo   |

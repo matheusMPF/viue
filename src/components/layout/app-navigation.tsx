@@ -7,20 +7,26 @@ import { Bookmark, Compass, Home, LogOut, UsersRound } from 'lucide-react';
 
 import { Button } from '@/components/ui';
 import { useLogout } from '@/hooks/use-logout';
+import type { ProfileSlug } from '@/lib/profile/profiles';
+import { ProfileSwitcher } from '@/components/profile/profile-switcher';
 
-const navigationItems = [
-  { href: '/', label: 'Início', icon: Home },
-  { href: '/descobrir', label: 'Descobrir', icon: Compass },
-  { href: '/minha-lista', label: 'Minha lista', icon: Bookmark },
-  { href: '/comunidade', label: 'Comunidade', icon: UsersRound },
-] as const;
+function getNavigationItems(profile: ProfileSlug) {
+  return [
+    { href: `/${profile}`, label: 'Início', icon: Home },
+    { href: `/${profile}/descobrir`, label: 'Descobrir', icon: Compass },
+    { href: `/${profile}/minha-lista`, label: 'Minha lista', icon: Bookmark },
+    { href: '/comunidade', label: 'Comunidade', icon: UsersRound },
+  ] as const;
+}
 
-function NavigationLinks({ mobile = false }: { mobile?: boolean }) {
+function NavigationLinks({ mobile = false, profile }: { mobile?: boolean; profile: ProfileSlug }) {
   const pathname = usePathname();
+  const navigationItems = getNavigationItems(profile);
 
   return navigationItems.map((item) => {
     const Icon = item.icon;
-    const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+    const isActive =
+      item.href === '/comunidade' ? pathname.startsWith(item.href) : pathname === item.href;
     return (
       <Link
         aria-current={isActive ? 'page' : undefined}
@@ -34,18 +40,19 @@ function NavigationLinks({ mobile = false }: { mobile?: boolean }) {
   });
 }
 
-export function AppNavigation() {
+export function AppNavigation({ profile }: { profile: ProfileSlug }) {
   const { isLoggingOut, logout } = useLogout();
 
   return (
     <>
       <aside className="home-sidebar" aria-label="Navegação principal">
-        <Link className="home-brand" href="/" aria-label="Viuê - início">
+        <Link className="home-brand" href={`/${profile}`} aria-label="Viuê - início">
           <Image alt="" height={46} priority src="/brand/viue-symbol.png" width={46} />
         </Link>
         <nav>
-          <NavigationLinks />
+          <NavigationLinks profile={profile} />
         </nav>
+        <ProfileSwitcher profile={profile} />
         <Button
           aria-label="Sair da conta"
           className="home-logout"
@@ -58,7 +65,8 @@ export function AppNavigation() {
         </Button>
       </aside>
       <nav className="home-bottom-nav" aria-label="Navegação principal mobile">
-        <NavigationLinks mobile />
+        <NavigationLinks mobile profile={profile} />
+        <ProfileSwitcher profile={profile} variant="bottom-nav" />
       </nav>
     </>
   );

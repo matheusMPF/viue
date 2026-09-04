@@ -51,7 +51,14 @@ describe('segurança dos tokens web', () => {
     expect(joined).toContain('SameSite=lax');
     // path '/' (não restrito a '/api/auth') para que o proxy consiga ler o
     // refresh token em requisições de página e renovar a sessão silenciosamente.
-    expect(cookies.some((cookie) => cookie.includes('viue_refresh_token') && cookie.includes('Path=/') && !cookie.includes('Path=/api'))).toBe(true);
+    expect(
+      cookies.some(
+        (cookie) =>
+          cookie.includes('viue_refresh_token') &&
+          cookie.includes('Path=/') &&
+          !cookie.includes('Path=/api'),
+      ),
+    ).toBe(true);
 
     const logoutResponse = NextResponse.json({ success: true });
     clearAuthCookies(logoutResponse);

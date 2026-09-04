@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 
 import { AuthScreen } from '@/components/auth/auth-screen';
 import { getAuthenticatedUser } from '@/lib/auth/authenticated-user';
+import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
 
 export default async function LoginPage({
   searchParams,
@@ -12,7 +13,9 @@ export default async function LoginPage({
   const user = await getAuthenticatedUser().catch(() => null);
   if (user) {
     const { next } = await searchParams;
-    redirect(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+    redirect(
+      next && next.startsWith('/') && !next.startsWith('//') ? next : `/${DEFAULT_PROFILE_SLUG}`,
+    );
   }
 
   return (

@@ -18,10 +18,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { UserMenu } from '@/components/account/user-menu';
 import { MoviePosterCard } from '@/components/catalog/movie-poster-card';
-import { AppNavigation } from '@/components/layout/app-navigation';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Badge, Button } from '@/components/ui';
 import { authFetch } from '@/lib/auth/auth-fetch';
+import type { ProfileSlug } from '@/lib/profile/profiles';
 import type { HomeSocialContext } from '@/services/home/home.repository';
 import type { CatalogMovie, CatalogSeries } from '@/services/tmdb/tmdb.types';
 import type { PublicUser } from '@/types/auth';
@@ -177,6 +177,7 @@ function CatalogCarouselSection({
   id,
   isLoading,
   items,
+  profile,
   savedTitles,
   title,
   watchedByTitle,
@@ -187,6 +188,7 @@ function CatalogCarouselSection({
   id: string;
   isLoading: boolean;
   items: readonly (CatalogMovie | CatalogSeries)[];
+  profile: ProfileSlug;
   savedTitles: readonly string[];
   title: string;
   watchedByTitle: Record<string, number>;
@@ -236,6 +238,7 @@ function CatalogCarouselSection({
                 item={item}
                 key={item.id}
                 onToggleSaved={onToggleSaved}
+                profile={profile}
                 saved={savedTitles.includes(item.title)}
               />
             ))}
@@ -268,12 +271,14 @@ export function HomeScreen({
   initialMovies,
   initialMovies2026,
   initialSeries,
+  profile,
   user,
   socialContext,
 }: {
   initialMovies: CatalogMovie[];
   initialMovies2026: CatalogMovie[];
   initialSeries: CatalogSeries[];
+  profile: ProfileSlug;
   user: PublicUser;
   socialContext: HomeSocialContext;
 }) {
@@ -485,205 +490,200 @@ export function HomeScreen({
   }
 
   return (
-    <div className="home-app" id="inicio">
-      <AppNavigation />
-
-      <div className="home-workspace">
-        <header className="home-header">
-          <a className="home-mobile-brand" href="#inicio" aria-label="Viue - inicio">
-            <Image alt="" height={40} priority src="/brand/viue-symbol.png" width={40} />
-          </a>
-          <div className="home-search-shell" onBlur={handleSearchBlur}>
-            <label className="home-search" htmlFor="home-search-input">
-              <Search aria-hidden="true" size={19} />
-              <span className="sr-only">Buscar filmes e series</span>
-              <input
-                aria-autocomplete="list"
-                aria-controls="home-search-suggestions"
-                aria-expanded={isSearchListOpen}
-                autoComplete="off"
-                id="home-search-input"
-                onChange={(event) => setQuery(event.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                placeholder="Buscar filmes e series"
-                role="combobox"
-                type="search"
-                value={query}
-              />
-            </label>
-
-            {isSearchListOpen ? (
-              <div
-                aria-label="Sugestoes de filmes e series"
-                className="home-search-suggestions"
-                id="home-search-suggestions"
-                role="listbox"
-              >
-                {movieCatalog.isLoading ? (
-                  <div className="home-search-status" role="status">
-                    <LoaderCircle aria-hidden="true" size={15} /> Buscando filmes e series
-                  </div>
-                ) : null}
-
-                {!movieCatalog.isLoading && searchSuggestions.length > 0
-                  ? searchSuggestions.map((item) => (
-                      <button
-                        aria-selected="false"
-                        className="home-search-option"
-                        key={`suggestion-${item.id}`}
-                        onClick={() => handleSelectSuggestion(item)}
-                        role="option"
-                        type="button"
-                      >
-                        <span className="home-search-poster" aria-hidden="true">
-                          {item.posterUrl ? (
-                            <Image alt="" fill sizes="44px" src={item.posterUrl} />
-                          ) : (
-                            item.title.slice(0, 1)
-                          )}
-                        </span>
-                        <span>
-                          <strong>{item.title}</strong>
-                          <small>
-                            {seriesSuggestionIds.has(item.id) ? 'Serie' : 'Filme'}
-                            {getMovieSuggestionMeta(item)
-                              ? ` - ${getMovieSuggestionMeta(item)}`
-                              : ''}
-                          </small>
-                        </span>
-                      </button>
-                    ))
-                  : null}
-
-                {!movieCatalog.isLoading && searchSuggestions.length === 0 ? (
-                  <p className="home-search-status" role="status">
-                    Nenhum filme ou serie encontrado.
-                  </p>
-                ) : null}
-
-                <Link
-                  className="home-search-all"
-                  href={`/filmes/melhores-avaliados?query=${encodeURIComponent(query.trim())}`}
-                  onClick={() => setIsSearchFocused(false)}
-                >
-                  Ver todos os resultados para &quot;{query.trim()}&quot;
-                </Link>
-              </div>
-            ) : null}
-          </div>
-          <NotificationBell unreadCount={socialContext.unreadNotificationCount} />
-          <UserMenu user={user} />
-        </header>
-
-        <main className="home-content">
-          <section className="home-welcome" aria-labelledby="home-title">
-            <div>
-              <span className="home-kicker">Seu diario de entretenimento</span>
-              <h1 id="home-title">Ola, {firstName}. O que vamos descobrir hoje?</h1>
-            </div>
-          </section>
-
-          <section className="home-feature" aria-labelledby="feature-title">
-            <Image
-              alt="Amigos escolhendo juntos o que assistir"
-              className="home-feature-image"
-              fill
-              priority
-              sizes="(max-width: 760px) 100vw, (max-width: 1200px) 80vw, 1050px"
-              src="/images/home-community-night.png"
+    <div className="home-workspace" id="inicio">
+      <header className="home-header">
+        <a className="home-mobile-brand" href="#inicio" aria-label="Viue - inicio">
+          <Image alt="" height={40} priority src="/brand/viue-symbol.png" width={40} />
+        </a>
+        <div className="home-search-shell" onBlur={handleSearchBlur}>
+          <label className="home-search" htmlFor="home-search-input">
+            <Search aria-hidden="true" size={19} />
+            <span className="sr-only">Buscar filmes e series</span>
+            <input
+              aria-autocomplete="list"
+              aria-controls="home-search-suggestions"
+              aria-expanded={isSearchListOpen}
+              autoComplete="off"
+              id="home-search-input"
+              onChange={(event) => setQuery(event.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              placeholder="Buscar filmes e series"
+              role="combobox"
+              type="search"
+              value={query}
             />
-            <div className="home-feature-scrim" />
-            <div className="home-feature-copy">
-              <Badge className="home-feature-badge" variant="info">
-                Sessao em comunidade
-              </Badge>
-              <h2 id="feature-title">A melhor escolha comeca com a turma.</h2>
-              <p>Compare listas, encontre o match da noite e transforme opiniao em conversa.</p>
-              <div className="home-feature-actions">
-                <Button
-                  leftIcon={<UsersRound aria-hidden="true" size={18} />}
-                  onClick={() => router.push('/comunidade')}
-                  size="lg"
-                >
-                  Criar sala
-                </Button>
-                <Button
-                  leftIcon={<Compass aria-hidden="true" size={18} />}
-                  onClick={() => document.querySelector('#filmes')?.scrollIntoView()}
-                  size="lg"
-                  variant="secondary"
-                >
-                  Explorar
-                </Button>
-              </div>
-            </div>
-          </section>
+          </label>
 
-          {hasSearchResults ? (
-            <>
-              <CatalogCarouselSection
-                error={movieCatalog.error}
-                href={
-                  normalizedQuery
-                    ? `/filmes/melhores-avaliados?query=${encodeURIComponent(query.trim())}`
-                    : '/filmes/melhores-avaliados'
-                }
-                id="filmes"
-                isLoading={movieCatalog.isLoading}
-                items={searchCatalogItems}
-                onToggleSaved={toggleSaved}
-                savedTitles={savedTitles}
-                title={
-                  normalizedQuery
-                    ? `Resultados para "${query.trim()}"`
-                    : 'Filmes mais bem avaliados'
-                }
-                watchedByTitle={socialContext.watchedByTitle}
-              />
-
-              <CatalogCarouselSection
-                error={movieCatalog2026.error}
-                href="/filmes/melhores-avaliados?year=2026"
-                id="filmes-2026"
-                isLoading={movieCatalog2026.isLoading}
-                items={movieCatalog2026.items}
-                onToggleSaved={toggleSaved}
-                savedTitles={savedTitles}
-                title="Melhores filmes de 2026"
-                watchedByTitle={socialContext.watchedByTitle}
-              />
-
-              <CatalogCarouselSection
-                error={seriesCatalog.error}
-                href="/series/melhores-avaliadas"
-                id="series"
-                isLoading={seriesCatalog.isLoading}
-                items={seriesCatalog.items}
-                onToggleSaved={toggleSaved}
-                savedTitles={savedTitles}
-                title="Series mais aclamadas"
-                watchedByTitle={socialContext.watchedByTitle}
-              />
-
-              {socialContext.friendCount > 0 && socialHighlights.length > 0 ? (
-                <CatalogSection
-                  eyebrow="O que esta circulando"
-                  id="comunidade"
-                  items={socialHighlights}
-                  onToggleSaved={toggleSaved}
-                  savedTitles={savedTitles}
-                  title="Em alta entre amigos"
-                  watchedByTitle={socialContext.watchedByTitle}
-                />
+          {isSearchListOpen ? (
+            <div
+              aria-label="Sugestoes de filmes e series"
+              className="home-search-suggestions"
+              id="home-search-suggestions"
+              role="listbox"
+            >
+              {movieCatalog.isLoading ? (
+                <div className="home-search-status" role="status">
+                  <LoaderCircle aria-hidden="true" size={15} /> Buscando filmes e series
+                </div>
               ) : null}
-            </>
-          ) : (
-            <p className="home-empty" role="status">
-              Nenhum filme encontrado para &quot;{query}&quot;.
-            </p>
-          )}
-        </main>
-      </div>
+
+              {!movieCatalog.isLoading && searchSuggestions.length > 0
+                ? searchSuggestions.map((item) => (
+                    <button
+                      aria-selected="false"
+                      className="home-search-option"
+                      key={`suggestion-${item.id}`}
+                      onClick={() => handleSelectSuggestion(item)}
+                      role="option"
+                      type="button"
+                    >
+                      <span className="home-search-poster" aria-hidden="true">
+                        {item.posterUrl ? (
+                          <Image alt="" fill sizes="44px" src={item.posterUrl} />
+                        ) : (
+                          item.title.slice(0, 1)
+                        )}
+                      </span>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>
+                          {seriesSuggestionIds.has(item.id) ? 'Serie' : 'Filme'}
+                          {getMovieSuggestionMeta(item) ? ` - ${getMovieSuggestionMeta(item)}` : ''}
+                        </small>
+                      </span>
+                    </button>
+                  ))
+                : null}
+
+              {!movieCatalog.isLoading && searchSuggestions.length === 0 ? (
+                <p className="home-search-status" role="status">
+                  Nenhum filme ou serie encontrado.
+                </p>
+              ) : null}
+
+              <Link
+                className="home-search-all"
+                href={`/${profile}/filmes/melhores-avaliados?query=${encodeURIComponent(query.trim())}`}
+                onClick={() => setIsSearchFocused(false)}
+              >
+                Ver todos os resultados para &quot;{query.trim()}&quot;
+              </Link>
+            </div>
+          ) : null}
+        </div>
+        <NotificationBell unreadCount={socialContext.unreadNotificationCount} />
+        <UserMenu user={user} />
+      </header>
+
+      <main className="home-content">
+        <section className="home-welcome" aria-labelledby="home-title">
+          <div>
+            <span className="home-kicker">Seu diario de entretenimento</span>
+            <h1 id="home-title">Ola, {firstName}. O que vamos descobrir hoje?</h1>
+          </div>
+        </section>
+
+        <section className="home-feature" aria-labelledby="feature-title">
+          <Image
+            alt="Amigos escolhendo juntos o que assistir"
+            className="home-feature-image"
+            fill
+            priority
+            sizes="(max-width: 760px) 100vw, (max-width: 1200px) 80vw, 1050px"
+            src="/images/home-community-night.png"
+          />
+          <div className="home-feature-scrim" />
+          <div className="home-feature-copy">
+            <Badge className="home-feature-badge" variant="info">
+              Sessao em comunidade
+            </Badge>
+            <h2 id="feature-title">A melhor escolha comeca com a turma.</h2>
+            <p>Compare listas, encontre o match da noite e transforme opiniao em conversa.</p>
+            <div className="home-feature-actions">
+              <Button
+                leftIcon={<UsersRound aria-hidden="true" size={18} />}
+                onClick={() => router.push('/comunidade')}
+                size="lg"
+              >
+                Criar sala
+              </Button>
+              <Button
+                leftIcon={<Compass aria-hidden="true" size={18} />}
+                onClick={() => document.querySelector('#filmes')?.scrollIntoView()}
+                size="lg"
+                variant="secondary"
+              >
+                Explorar
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {hasSearchResults ? (
+          <>
+            <CatalogCarouselSection
+              error={movieCatalog.error}
+              href={
+                normalizedQuery
+                  ? `/${profile}/filmes/melhores-avaliados?query=${encodeURIComponent(query.trim())}`
+                  : `/${profile}/filmes/melhores-avaliados`
+              }
+              id="filmes"
+              isLoading={movieCatalog.isLoading}
+              items={searchCatalogItems}
+              onToggleSaved={toggleSaved}
+              profile={profile}
+              savedTitles={savedTitles}
+              title={
+                normalizedQuery ? `Resultados para "${query.trim()}"` : 'Filmes mais bem avaliados'
+              }
+              watchedByTitle={socialContext.watchedByTitle}
+            />
+
+            <CatalogCarouselSection
+              error={movieCatalog2026.error}
+              href={`/${profile}/filmes/melhores-avaliados?year=2026`}
+              id="filmes-2026"
+              isLoading={movieCatalog2026.isLoading}
+              items={movieCatalog2026.items}
+              onToggleSaved={toggleSaved}
+              profile={profile}
+              savedTitles={savedTitles}
+              title="Melhores filmes de 2026"
+              watchedByTitle={socialContext.watchedByTitle}
+            />
+
+            <CatalogCarouselSection
+              error={seriesCatalog.error}
+              href={`/${profile}/series/melhores-avaliadas`}
+              id="series"
+              isLoading={seriesCatalog.isLoading}
+              items={seriesCatalog.items}
+              onToggleSaved={toggleSaved}
+              profile={profile}
+              savedTitles={savedTitles}
+              title="Series mais aclamadas"
+              watchedByTitle={socialContext.watchedByTitle}
+            />
+
+            {socialContext.friendCount > 0 && socialHighlights.length > 0 ? (
+              <CatalogSection
+                eyebrow="O que esta circulando"
+                id="comunidade"
+                items={socialHighlights}
+                onToggleSaved={toggleSaved}
+                savedTitles={savedTitles}
+                title="Em alta entre amigos"
+                watchedByTitle={socialContext.watchedByTitle}
+              />
+            ) : null}
+          </>
+        ) : (
+          <p className="home-empty" role="status">
+            Nenhum filme encontrado para &quot;{query}&quot;.
+          </p>
+        )}
+      </main>
     </div>
   );
 }

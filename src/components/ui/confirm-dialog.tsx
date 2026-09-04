@@ -50,12 +50,7 @@ export function ConfirmDialog({
         >
           {cancelLabel}
         </Button>
-        <Button
-          isLoading={isConfirming}
-          onClick={onConfirm}
-          type="button"
-          variant={confirmVariant}
-        >
+        <Button isLoading={isConfirming} onClick={onConfirm} type="button" variant={confirmVariant}>
           {confirmLabel}
         </Button>
       </Modal.Footer>
