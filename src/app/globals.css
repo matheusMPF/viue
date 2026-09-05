@@ -1690,6 +1690,16 @@ button {
   left: 12px;
 }
 
+.profile-switcher.is-bottom-nav .profile-switcher-item {
+  min-height: 0;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: flex-start;
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-align: left;
+}
+
 .profile-switcher-item {
   display: flex;
   width: 100%;
@@ -1709,8 +1719,8 @@ button {
   flex: 1;
 }
 
-.profile-switcher-item:hover,
-.profile-switcher-item:focus-visible {
+.profile-switcher-item:not(.is-disabled):hover,
+.profile-switcher-item:not(.is-disabled):focus-visible {
   background: oklch(0.2 0.05 294 / 82%);
   outline: 0;
 }
@@ -1739,6 +1749,8 @@ button {
 .profile-switcher-item.is-disabled {
   color: var(--muted-foreground);
   cursor: not-allowed;
+  pointer-events: none;
+  user-select: none;
 }
 
 .home-content {
