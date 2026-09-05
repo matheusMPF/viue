@@ -17,10 +17,12 @@ import type { FocusEvent } from 'react';
 import { useEffect, useState } from 'react';
 
 import { AppNavigation } from '@/components/layout/app-navigation';
+import { RoomMatchLobby } from '@/components/community/room-match-lobby';
 import { Button } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
 import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
+import type { MatchSessionView } from '@/types/community/match';
 
 type Person = {
   id: string;
@@ -193,7 +195,13 @@ function RoomInvitePanel({
   );
 }
 
-export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
+export function RoomScreen({
+  initialMatch,
+  initialRoom,
+}: {
+  initialMatch: MatchSessionView | null;
+  initialRoom: Room;
+}) {
   const [room, setRoom] = useState(initialRoom);
   const [isSaving, setIsSaving] = useState(false);
   const showToast = useToast();
@@ -276,6 +284,12 @@ export function RoomScreen({ initialRoom }: { initialRoom: Room }) {
               <p>{room.description || 'Os títulos que conectam as avaliações deste grupo.'}</p>
             </div>
           </header>
+
+          <RoomMatchLobby
+            initialSession={initialMatch}
+            participantCount={room.participants.length}
+            roomId={room.id}
+          />
 
           <div className="room-layout">
             <aside className="room-sidebar-panel">

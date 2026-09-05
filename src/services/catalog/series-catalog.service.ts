@@ -7,6 +7,7 @@ import {
   getTmdbSeriesGenres,
   searchTmdbSeries,
 } from '@/services/tmdb/tmdb.client';
+import type { TmdbDiscoverFilters } from '@/services/tmdb/tmdb.client';
 import type { CatalogSeries, TmdbGenre, TmdbTvSummary } from '@/services/tmdb/tmdb.types';
 
 const TMDB_TV_SOURCE = 'TMDB_TV';
@@ -15,7 +16,7 @@ const MAX_SERIES_PER_REQUEST = 30;
 
 export type SeriesCatalogKind = 'discover' | 'top-rated' | 'search';
 
-type SeriesCatalogOptions = {
+export type SeriesCatalogOptions = TmdbDiscoverFilters & {
   kind?: SeriesCatalogKind;
   genreId?: number;
   limit?: number;
@@ -149,11 +150,16 @@ function getTmdbSeriesByKind(
   kind: SeriesCatalogKind,
   query: string,
   page: number,
-  genreId?: number,
+  filters?: TmdbDiscoverFilters,
 ) {
   if (kind === 'search' || query.trim()) return searchTmdbSeries(query, page);
-  if (kind === 'discover') return discoverTmdbSeries(page, genreId);
+  if (kind === 'discover') return discoverTmdbSeries(page, filters);
   return discoverTopRatedTmdbSeries(page);
+}
+
+export async function getSeriesGenreOptions() {
+  const response = await getTmdbSeriesGenres();
+  return response.genres.map((genre) => ({ id: genre.id, name: genre.name }));
 }
 
 export async function getSeriesCatalog({
@@ -162,10 +168,20 @@ export async function getSeriesCatalog({
   limit = DEFAULT_SERIES_PER_REQUEST,
   page = 1,
   query = '',
+  runtimeMax,
+  runtimeMin,
+  yearFrom,
+  yearTo,
 }: SeriesCatalogOptions = {}) {
   const [genresResponse, seriesResponse] = await Promise.all([
     getTmdbSeriesGenres(),
-    getTmdbSeriesByKind(kind, query, page, genreId),
+    getTmdbSeriesByKind(kind, query, page, {
+      genreId,
+      runtimeMax,
+      runtimeMin,
+      yearFrom,
+      yearTo,
+    }),
   ]);
   const genresByTmdbId = new Map(genresResponse.genres.map((genre) => [genre.id, genre]));
   const boundedLimit = Math.min(Math.max(limit, 1), MAX_SERIES_PER_REQUEST);

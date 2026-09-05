@@ -7,6 +7,7 @@ import {
   getTmdbMovieGenres,
   searchTmdbMovies,
 } from '@/services/tmdb/tmdb.client';
+import type { TmdbDiscoverFilters } from '@/services/tmdb/tmdb.client';
 import type { CatalogMovie, TmdbGenre, TmdbMovieSummary } from '@/services/tmdb/tmdb.types';
 
 const TMDB_SOURCE = 'TMDB';
@@ -15,7 +16,7 @@ const MAX_MOVIES_PER_REQUEST = 30;
 
 export type MovieCatalogKind = 'discover' | 'top-rated' | 'top-rated-2026' | 'search';
 
-type MovieCatalogOptions = {
+export type MovieCatalogOptions = TmdbDiscoverFilters & {
   kind?: MovieCatalogKind;
   genreId?: number;
   limit?: number;
@@ -149,10 +150,10 @@ function getTmdbMoviesByKind(
   kind: MovieCatalogKind,
   query: string,
   page: number,
-  genreId?: number,
+  filters?: TmdbDiscoverFilters,
 ) {
   if (kind === 'search' || query.trim()) return searchTmdbMovies(query, page);
-  if (kind === 'discover') return discoverTmdbMovies(page, genreId);
+  if (kind === 'discover') return discoverTmdbMovies(page, filters);
   if (kind === 'top-rated-2026') return discoverTopRatedTmdbMovies(page, 2026);
   return discoverTopRatedTmdbMovies(page);
 }
@@ -162,7 +163,7 @@ async function getTmdbMovieBatch(
   query: string,
   page: number,
   limit: number,
-  genreId?: number,
+  filters?: TmdbDiscoverFilters,
 ) {
   const startIndex = (page - 1) * limit;
   const firstTmdbPage = Math.floor(startIndex / 20) + 1;
@@ -173,7 +174,7 @@ async function getTmdbMovieBatch(
   );
   const responses = await Promise.all(
     Array.from({ length: tmdbPageCount }, (_, index) =>
-      getTmdbMoviesByKind(kind, query, firstTmdbPage + index, genreId),
+      getTmdbMoviesByKind(kind, query, firstTmdbPage + index, filters),
     ),
   );
   const totalResults = responses[0]?.total_results ?? 0;
@@ -196,11 +197,21 @@ export async function getMovieCatalog({
   limit = DEFAULT_MOVIES_PER_REQUEST,
   page = 1,
   query = '',
+  runtimeMax,
+  runtimeMin,
+  yearFrom,
+  yearTo,
 }: MovieCatalogOptions = {}) {
   const boundedLimit = Math.min(Math.max(limit, 1), MAX_MOVIES_PER_REQUEST);
   const [genresResponse, moviesResponse] = await Promise.all([
     getTmdbMovieGenres(),
-    getTmdbMovieBatch(kind, query, page, boundedLimit, genreId),
+    getTmdbMovieBatch(kind, query, page, boundedLimit, {
+      genreId,
+      runtimeMax,
+      runtimeMin,
+      yearFrom,
+      yearTo,
+    }),
   ]);
   const genresByTmdbId = new Map(genresResponse.genres.map((genre) => [genre.id, genre]));
   const movies = moviesResponse.results.filter((movie) => movie.title).slice(0, boundedLimit);

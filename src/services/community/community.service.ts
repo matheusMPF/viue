@@ -8,6 +8,7 @@ import {
 } from '@/services/notifications/notification.service';
 import { getAcceptedFriendIds } from '@/services/shared/friendships';
 import { calculateRoomMatches } from './room-matches';
+import { closeInactiveCommunityState } from './community-lifecycle.service';
 
 const publicUserSelect = {
   id: true,
@@ -21,6 +22,8 @@ function communityError(message: string, status = 400) {
 }
 
 export async function getCommunityOverview(userId: string, search = '') {
+  await closeInactiveCommunityState();
+
   const friendships = await prisma.tb_friendship.findMany({
     where: { OR: [{ requester_id: userId }, { addressee_id: userId }] },
     include: {
@@ -225,6 +228,8 @@ export async function createRoom(
 }
 
 export async function getRoomDetail(userId: string, roomId: string) {
+  await closeInactiveCommunityState(roomId);
+
   const room = await prisma.tb_room.findFirst({
     where: {
       id: roomId,
@@ -305,6 +310,8 @@ async function ensureRoomInviteCode(roomId: string): Promise<string> {
 }
 
 async function assertRoomMember(userId: string, roomId: string) {
+  await closeInactiveCommunityState(roomId);
+
   const room = await prisma.tb_room.findFirst({
     where: {
       id: roomId,
@@ -337,6 +344,8 @@ export async function inviteFriendToRoom(userId: string, roomId: string, friendI
 }
 
 export async function joinRoomByInviteCode(userId: string, code: string) {
+  await closeInactiveCommunityState();
+
   const room = await prisma.tb_room.findFirst({
     where: { invite_code: code, status: 'ACTIVE' },
     select: { id: true },

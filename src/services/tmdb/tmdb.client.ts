@@ -13,6 +13,14 @@ type TmdbRequestOptions = {
   revalidate?: number;
 };
 
+export type TmdbDiscoverFilters = {
+  genreId?: number;
+  runtimeMax?: number;
+  runtimeMin?: number;
+  yearFrom?: number;
+  yearTo?: number;
+};
+
 export class TmdbError extends Error {
   constructor(
     message: string,
@@ -101,14 +109,18 @@ export function discoverTopRatedTmdbMovies(page = 1, year?: number) {
   });
 }
 
-export function discoverTmdbMovies(page = 1, genreId?: number) {
+export function discoverTmdbMovies(page = 1, filters: TmdbDiscoverFilters = {}) {
   return tmdbRequest<TmdbMovieSearchResponse>('/discover/movie', {
     params: {
       include_adult: false,
       include_video: false,
       page,
       sort_by: 'popularity.desc',
-      with_genres: genreId,
+      'primary_release_date.gte': filters.yearFrom ? `${filters.yearFrom}-01-01` : undefined,
+      'primary_release_date.lte': filters.yearTo ? `${filters.yearTo}-12-31` : undefined,
+      'with_runtime.gte': filters.runtimeMin,
+      'with_runtime.lte': filters.runtimeMax,
+      with_genres: filters.genreId,
     },
     revalidate: 60 * 30,
   });
@@ -134,14 +146,18 @@ export function searchTmdbSeries(query: string, page = 1) {
   });
 }
 
-export function discoverTmdbSeries(page = 1, genreId?: number) {
+export function discoverTmdbSeries(page = 1, filters: TmdbDiscoverFilters = {}) {
   return tmdbRequest<TmdbTvSearchResponse>('/discover/tv', {
     params: {
       include_adult: false,
       include_null_first_air_dates: false,
+      'first_air_date.gte': filters.yearFrom ? `${filters.yearFrom}-01-01` : undefined,
+      'first_air_date.lte': filters.yearTo ? `${filters.yearTo}-12-31` : undefined,
       page,
       sort_by: 'popularity.desc',
-      with_genres: genreId,
+      'with_runtime.gte': filters.runtimeMin,
+      'with_runtime.lte': filters.runtimeMax,
+      with_genres: filters.genreId,
     },
     revalidate: 60 * 30,
   });
