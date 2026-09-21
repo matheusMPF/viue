@@ -7,8 +7,13 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:reset-password', RATE_LIMITS.resetPassword);
     const input = await parseBody(request, ResetPasswordSchema);
+    await enforceRateLimit(
+      request,
+      'auth:reset-password',
+      RATE_LIMITS.resetPassword,
+      input.resetToken,
+    );
     const result = await authService.resetPassword(input);
     const response = messageResponse(result.message);
     setAuthCookies(response, result.accessToken, result.refreshToken);

@@ -6,8 +6,8 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:register', RATE_LIMITS.register);
     const input = await parseBody(request, RegisterSchema);
+    await enforceRateLimit(request, 'auth:register', RATE_LIMITS.register, input.email);
     return successResponse(await authService.register(input), 201);
   } catch (error) {
     return errorResponse(error);

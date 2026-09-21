@@ -7,6 +7,18 @@ import { verifyAccessToken } from '@/lib/auth/jwt';
 import { enforceRateLimit } from '@/lib/auth/rate-limiter';
 import { authService } from '@/services/auth';
 
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function hasTrustedOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 async function hasValidAccessToken(token: string | undefined): Promise<boolean> {
   if (!token) return false;
   try {
@@ -35,6 +47,20 @@ function withUpdatedCookie(cookieHeader: string | null, name: string, value: str
  * para o login — exatamente o comportamento anterior a essa otimização.
  */
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    if (MUTATING_METHODS.has(request.method) && !hasTrustedOrigin(request)) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'UNTRUSTED_ORIGIN',
+          message: 'Origem da requisição não permitida.',
+        },
+        { status: 403 },
+      );
+    }
+    return NextResponse.next();
+  }
+
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (await hasValidAccessToken(accessToken)) return NextResponse.next();
 
@@ -42,7 +68,7 @@ export async function proxy(request: NextRequest) {
   if (!refreshToken) return NextResponse.next();
 
   try {
-    await enforceRateLimit(request, 'auth:refresh', RATE_LIMITS.refresh);
+    await enforceRateLimit(request, 'auth:refresh', RATE_LIMITS.refresh, refreshToken);
     const result = await authService.refresh(refreshToken);
 
     const cookieHeader = request.headers.get('cookie');
@@ -66,6 +92,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/:path*',
     {
       source: '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
       missing: [

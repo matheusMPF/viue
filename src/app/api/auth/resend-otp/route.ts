@@ -6,8 +6,8 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:resend-otp', RATE_LIMITS.resendOtp);
     const input = await parseBody(request, ResendOtpSchema);
+    await enforceRateLimit(request, 'auth:resend-otp', RATE_LIMITS.resendOtp, input.email);
     return successResponse(await authService.resendOtp(input));
   } catch (error) {
     return errorResponse(error);

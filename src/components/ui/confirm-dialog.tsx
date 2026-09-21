@@ -7,6 +7,8 @@ import { Modal } from './modal';
 
 export interface ConfirmDialogProps {
   cancelLabel?: string;
+  children?: ReactNode;
+  confirmDisabled?: boolean;
   confirmLabel: string;
   confirmVariant?: ButtonVariant;
   description: ReactNode;
@@ -23,6 +25,8 @@ export interface ConfirmDialogProps {
  */
 export function ConfirmDialog({
   cancelLabel = 'Cancelar',
+  children,
+  confirmDisabled = false,
   confirmLabel,
   confirmVariant = 'primary',
   description,
@@ -40,6 +44,7 @@ export function ConfirmDialog({
       </Modal.Header>
       <Modal.Body>
         <Modal.Description>{description}</Modal.Description>
+        {children ? <div className="mt-5">{children}</div> : null}
       </Modal.Body>
       <Modal.Footer>
         <Button
@@ -50,7 +55,13 @@ export function ConfirmDialog({
         >
           {cancelLabel}
         </Button>
-        <Button isLoading={isConfirming} onClick={onConfirm} type="button" variant={confirmVariant}>
+        <Button
+          disabled={confirmDisabled || isConfirming}
+          isLoading={isConfirming}
+          onClick={onConfirm}
+          type="button"
+          variant={confirmVariant}
+        >
           {confirmLabel}
         </Button>
       </Modal.Footer>

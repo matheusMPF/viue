@@ -376,8 +376,14 @@ export class AuthService {
     };
   }
 
-  async deleteAccount(userId: string): Promise<void> {
-    await this.requireUser(userId);
+  async deleteAccount(userId: string, currentPassword: string): Promise<void> {
+    const user = await this.requireUser(userId);
+    if (
+      !user.passwordHash ||
+      !(await this.dependencies.verifyPassword(user.passwordHash, currentPassword))
+    ) {
+      throw new AuthError('INVALID_CURRENT_PASSWORD', 'Senha atual incorreta.', 401);
+    }
     await this.dependencies.repository.deleteUser(userId);
   }
 

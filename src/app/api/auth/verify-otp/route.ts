@@ -7,8 +7,8 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:verify-otp', RATE_LIMITS.verifyOtp);
     const input = await parseBody(request, VerifyOtpSchema);
+    await enforceRateLimit(request, 'auth:verify-otp', RATE_LIMITS.verifyOtp, input.email);
     const result = await authService.verifyOtp(input);
     if ('resetToken' in result) return successResponse(result);
 

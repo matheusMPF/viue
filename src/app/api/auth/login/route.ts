@@ -7,8 +7,8 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:login', RATE_LIMITS.login);
     const input = await parseBody(request, LoginSchema);
+    await enforceRateLimit(request, 'auth:login', RATE_LIMITS.login, input.email);
     const result = await authService.login(input);
     const response = successResponse({ user: result.user });
     setAuthCookies(response, result.accessToken, result.refreshToken);

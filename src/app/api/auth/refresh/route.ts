@@ -9,8 +9,9 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit(request, 'auth:refresh', RATE_LIMITS.refresh);
-    const result = await authService.refresh(request.cookies.get(REFRESH_TOKEN_COOKIE)?.value);
+    const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+    await enforceRateLimit(request, 'auth:refresh', RATE_LIMITS.refresh, refreshToken);
+    const result = await authService.refresh(refreshToken);
     const response = successResponse({ user: result.user });
     setAuthCookies(response, result.accessToken, result.refreshToken);
     response.headers.set('Cache-Control', 'no-store');

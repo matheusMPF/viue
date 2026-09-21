@@ -24,7 +24,12 @@ export const ChangePasswordSchema = z.object({
   newPassword: PasswordSchema,
 });
 
+export const DeleteAccountSchema = z.object({
+  currentPassword: z.string().min(1, 'Informe sua senha atual.').max(200),
+});
+
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
 export type RequestEmailChangeInput = z.infer<typeof RequestEmailChangeSchema>;
 export type ConfirmEmailChangeInput = z.infer<typeof ConfirmEmailChangeSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
+export type DeleteAccountInput = z.infer<typeof DeleteAccountSchema>;

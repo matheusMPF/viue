@@ -366,18 +366,40 @@ function DangerZoneSection() {
   const showToast = useToast();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function handleOpenChange(open: boolean) {
+    if (isDeleting) return;
+    setIsConfirmOpen(open);
+    if (!open) {
+      setCurrentPassword('');
+      setDeleteError(null);
+    }
+  }
 
   async function handleDelete() {
+    if (!currentPassword) {
+      setDeleteError('Informe sua senha atual.');
+      return;
+    }
     setIsDeleting(true);
+    setDeleteError(null);
     try {
-      const response = await authFetch('/api/user/me', { method: 'DELETE' });
+      const response = await authFetch('/api/user/me', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ currentPassword }),
+      });
       await readJson(response);
       router.replace('/entrar');
       router.refresh();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível excluir a conta.';
+      setDeleteError(message);
       showToast({
         title: 'Não foi possível excluir a conta.',
-        description: err instanceof Error ? err.message : undefined,
+        description: message,
         variant: 'error',
       });
       setIsDeleting(false);
@@ -406,15 +428,29 @@ function DangerZoneSection() {
       </Button>
 
       <ConfirmDialog
+        confirmDisabled={!currentPassword}
         confirmLabel="Excluir conta"
         confirmVariant="danger"
         description="Essa ação é permanente. Todos os seus dados, avaliações, amizades e salas que você criou serão removidos e não poderão ser recuperados."
         isConfirming={isDeleting}
         onConfirm={handleDelete}
-        onOpenChange={setIsConfirmOpen}
+        onOpenChange={handleOpenChange}
         open={isConfirmOpen}
         title="Excluir sua conta?"
-      />
+      >
+        <Input
+          autoComplete="current-password"
+          error={deleteError ?? undefined}
+          label="Confirme sua senha atual"
+          onChange={(event) => {
+            setCurrentPassword(event.target.value);
+            setDeleteError(null);
+          }}
+          required
+          type="password"
+          value={currentPassword}
+        />
+      </ConfirmDialog>
     </section>
   );
 }

@@ -27,6 +27,22 @@ afterEach(() => {
 });
 
 describe('proxy', () => {
+  it('permite mutações de API apenas quando a origem coincide com a aplicação', async () => {
+    const trusted = new NextRequest('http://localhost/api/user/me', {
+      method: 'DELETE',
+      headers: { origin: 'http://localhost' },
+    });
+    const external = new NextRequest('http://localhost/api/user/me', {
+      method: 'DELETE',
+      headers: { origin: 'https://example.com' },
+    });
+    const missing = new NextRequest('http://localhost/api/user/me', { method: 'DELETE' });
+
+    expect((await proxy(trusted)).status).toBe(200);
+    expect((await proxy(external)).status).toBe(403);
+    expect((await proxy(missing)).status).toBe(403);
+  });
+
   it('deixa a requisição seguir sem tocar em cookies quando o access token já é válido', async () => {
     process.env.JWT_SECRET = 'a'.repeat(32);
     const { createAccessToken } = await import('@/lib/auth/jwt');

@@ -1,3 +1,4 @@
+import { hashToken } from './crypto';
 import { AuthError } from './errors';
 
 export interface RateLimiter {
@@ -32,11 +33,19 @@ export async function enforceRateLimit(
   request: Request,
   scope: string,
   config: { limit: number; windowMs: number },
+  identifier?: string,
 ): Promise<void> {
   const forwardedFor = request.headers.get('x-forwarded-for');
   const clientIp = forwardedFor?.split(',')[0]?.trim() || 'local';
-  const allowed = await rateLimiter.consume(`${scope}:${clientIp}`, config.limit, config.windowMs);
-  if (!allowed) {
+  const keys = [`${scope}:ip:${clientIp}`];
+  const normalizedIdentifier = identifier?.trim().toLowerCase();
+  if (normalizedIdentifier) {
+    keys.push(`${scope}:identity:${hashToken(normalizedIdentifier)}`);
+  }
+  const results = await Promise.all(
+    keys.map((key) => rateLimiter.consume(key, config.limit, config.windowMs)),
+  );
+  if (results.some((allowed) => !allowed)) {
     throw new AuthError(
       'RATE_LIMIT_EXCEEDED',
       'Muitas tentativas. Aguarde alguns minutos e tente novamente.',

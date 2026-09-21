@@ -6,8 +6,13 @@ import { authService } from '@/services/auth';
 
 export async function POST(request: Request) {
   try {
-    await enforceRateLimit(request, 'auth:forgot-password', RATE_LIMITS.forgotPassword);
     const input = await parseBody(request, ForgotPasswordSchema);
+    await enforceRateLimit(
+      request,
+      'auth:forgot-password',
+      RATE_LIMITS.forgotPassword,
+      input.email,
+    );
     const result = await authService.forgotPassword(input);
     return messageResponse(result.message);
   } catch (error) {

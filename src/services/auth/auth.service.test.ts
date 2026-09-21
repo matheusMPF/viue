@@ -643,6 +643,20 @@ describe('AuthService', () => {
     });
   });
 
+  it('exige a senha atual antes de excluir a conta', async () => {
+    const { repository, service } = setup();
+    repository.users.push(makeUser());
+
+    await expectAuthError(
+      service.deleteAccount('user-1', 'senha-incorreta'),
+      'INVALID_CURRENT_PASSWORD',
+    );
+    expect(repository.users).toHaveLength(1);
+
+    await service.deleteAccount('user-1', 'senha-segura');
+    expect(repository.users).toHaveLength(0);
+  });
+
   it('permite que apenas uma validação simultânea consuma o OTP', async () => {
     const { repository, service } = setup();
     repository.users.push(makeUser());
