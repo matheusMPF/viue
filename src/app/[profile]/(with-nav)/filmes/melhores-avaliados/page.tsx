@@ -4,6 +4,7 @@ import { ComingSoonScreen } from '@/components/profile/coming-soon-screen';
 import { MovieListingScreen } from '@/components/catalog/movie-listing-screen';
 import { getAuthenticatedUser } from '@/lib/auth/authenticated-user';
 import { isProfileSlug, PROFILE_CONFIG } from '@/lib/profile/profiles';
+import { parseCatalogYear } from '@/services/catalog/catalog-period';
 import { getMovieCatalog, type MovieCatalogKind } from '@/services/catalog/movie-catalog.service';
 
 type TopRatedMoviesPageProps = {
@@ -27,17 +28,14 @@ export default async function TopRatedMoviesPage({
   if (!PROFILE_CONFIG[profile].available) return <ComingSoonScreen profile={profile} />;
 
   const { query = '', year } = await searchParams;
-  const kind: MovieCatalogKind = query
-    ? 'search'
-    : year === '2026'
-      ? 'top-rated-2026'
-      : 'top-rated';
+  const catalogYear = parseCatalogYear(year);
+  const kind: MovieCatalogKind = query ? 'search' : catalogYear ? 'top-rated-year' : 'top-rated';
   const title = query
     ? `Resultados para "${query}"`
-    : year === '2026'
-      ? 'Melhores filmes de 2026'
+    : catalogYear
+      ? `Melhores filmes de ${catalogYear}`
       : 'Filmes mais bem avaliados';
-  const catalog = await getMovieCatalog({ kind, limit: 30, page: 1, query });
+  const catalog = await getMovieCatalog({ kind, limit: 30, page: 1, query, year: catalogYear });
 
   return (
     <MovieListingScreen
@@ -48,6 +46,7 @@ export default async function TopRatedMoviesPage({
       title={title}
       totalPages={catalog.totalPages}
       totalResults={catalog.totalResults}
+      year={catalogYear}
     />
   );
 }

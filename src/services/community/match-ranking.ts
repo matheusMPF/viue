@@ -32,6 +32,9 @@ export type RankedMatchCandidate = MatchRankingCandidate & {
   };
 };
 
+const FIRST_PICK_POOL_SIZE = 5;
+const FIRST_PICK_SCORE_RANGE = 0.08;
+
 function clamp(value: number, minimum = 0, maximum = 1) {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -43,6 +46,36 @@ function stableUnitInterval(value: string) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) / 4_294_967_295;
+}
+
+function pickFirstCandidateIndex(
+  scored: readonly { adjustedScore: number; index: number }[],
+  context: string,
+) {
+  const ordered = [...scored].sort(
+    (left, right) => right.adjustedScore - left.adjustedScore || left.index - right.index,
+  );
+  const bestScore = ordered[0]?.adjustedScore ?? 0;
+  const pool = ordered
+    .slice(0, FIRST_PICK_POOL_SIZE)
+    .filter(({ adjustedScore }) => bestScore - adjustedScore <= FIRST_PICK_SCORE_RANGE);
+  if (pool.length <= 1) return pool[0]?.index ?? 0;
+
+  const weighted = pool.map((candidate) => ({
+    ...candidate,
+    weight:
+      0.25 +
+      0.75 * (1 - Math.min((bestScore - candidate.adjustedScore) / FIRST_PICK_SCORE_RANGE, 1)),
+  }));
+  const totalWeight = weighted.reduce((sum, candidate) => sum + candidate.weight, 0);
+  const target = stableUnitInterval(`${context}:first-pick`) * totalWeight;
+  let accumulated = 0;
+
+  for (const candidate of weighted) {
+    accumulated += candidate.weight;
+    if (target <= accumulated) return candidate.index;
+  }
+  return weighted.at(-1)?.index ?? 0;
 }
 
 function rerankForDiscovery(
@@ -72,6 +105,7 @@ function rerankForDiscovery(
   while (remaining.length > 0) {
     let bestIndex = 0;
     let bestScore = Number.NEGATIVE_INFINITY;
+    const scored: { adjustedScore: number; index: number }[] = [];
 
     for (let index = 0; index < remaining.length; index += 1) {
       const candidate = remaining[index];
@@ -85,6 +119,7 @@ function rerankForDiscovery(
       const sessionVariety = stableUnitInterval(`${context}:${candidate.id}`);
       const discoveryScore = genreNovelty * 0.75 + sessionVariety * 0.25;
       const adjustedScore = candidate.score + explorationWeight * discoveryScore;
+      scored.push({ adjustedScore, index });
 
       if (
         adjustedScore > bestScore ||
@@ -93,6 +128,11 @@ function rerankForDiscovery(
         bestIndex = index;
         bestScore = adjustedScore;
       }
+    }
+
+    if (selected.length === 0) {
+      bestIndex = pickFirstCandidateIndex(scored, context);
+      bestScore = scored.find(({ index }) => index === bestIndex)?.adjustedScore ?? bestScore;
     }
 
     const [candidate] = remaining.splice(bestIndex, 1);

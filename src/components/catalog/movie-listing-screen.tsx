@@ -11,7 +11,7 @@ import { authFetch } from '@/lib/auth/auth-fetch';
 import type { ProfileSlug } from '@/lib/profile/profiles';
 import type { CatalogMovie } from '@/services/tmdb/tmdb.types';
 
-type MovieCatalogKind = 'top-rated' | 'top-rated-2026' | 'search';
+type MovieCatalogKind = 'top-rated' | 'top-rated-year' | 'search';
 
 type MovieListingScreenProps = {
   initialItems: CatalogMovie[];
@@ -21,6 +21,7 @@ type MovieListingScreenProps = {
   title: string;
   totalPages: number;
   totalResults: number;
+  year?: number;
 };
 
 function getCatalogError(error: unknown) {
@@ -35,6 +36,7 @@ export function MovieListingScreen({
   title,
   totalPages,
   totalResults,
+  year,
 }: MovieListingScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -62,6 +64,7 @@ export function MovieListingScreen({
         page: String(nextPage),
       });
       if (query.trim()) params.set('query', query.trim());
+      if (year) params.set('year', String(year));
 
       const response = await authFetch(`/api/catalog/movies?${params.toString()}`);
       const payload = (await response.json()) as

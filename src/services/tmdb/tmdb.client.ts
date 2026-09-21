@@ -6,6 +6,8 @@ import type {
   TmdbTvSearchResponse,
 } from './tmdb.types';
 
+import { MONTHLY_EDITORIAL_CATALOG_REVALIDATE_SECONDS } from '@/services/catalog/catalog-period';
+
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 type TmdbRequestOptions = {
@@ -105,7 +107,7 @@ export function discoverTopRatedTmdbMovies(page = 1, year?: number) {
       sort_by: 'vote_average.desc',
       'vote_count.gte': year ? 50 : 500,
     },
-    revalidate: 60 * 60,
+    revalidate: MONTHLY_EDITORIAL_CATALOG_REVALIDATE_SECONDS,
   });
 }
 
@@ -172,7 +174,7 @@ export function discoverTopRatedTmdbSeries(page = 1) {
       sort_by: 'vote_average.desc',
       'vote_count.gte': 500,
     },
-    revalidate: 60 * 60,
+    revalidate: MONTHLY_EDITORIAL_CATALOG_REVALIDATE_SECONDS,
   });
 }
 

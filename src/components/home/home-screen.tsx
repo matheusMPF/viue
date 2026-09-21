@@ -26,7 +26,7 @@ import type { HomeSocialContext } from '@/services/home/home.repository';
 import type { CatalogMovie, CatalogSeries } from '@/services/tmdb/tmdb.types';
 import type { PublicUser } from '@/types/auth';
 
-type MovieCatalogKind = 'top-rated' | 'top-rated-2026' | 'search';
+type MovieCatalogKind = 'top-rated' | 'top-rated-year' | 'search';
 type SeriesCatalogKind = 'top-rated' | 'search';
 
 type MovieCatalogState = {
@@ -268,15 +268,17 @@ function CatalogCarouselSection({
 }
 
 export function HomeScreen({
+  currentYear,
+  initialCurrentYearMovies,
   initialMovies,
-  initialMovies2026,
   initialSeries,
   profile,
   user,
   socialContext,
 }: {
+  currentYear: number;
+  initialCurrentYearMovies: CatalogMovie[];
   initialMovies: CatalogMovie[];
-  initialMovies2026: CatalogMovie[];
   initialSeries: CatalogSeries[];
   profile: ProfileSlug;
   user: PublicUser;
@@ -287,8 +289,8 @@ export function HomeScreen({
   const [movieCatalog, setMovieCatalog] = useState<MovieCatalogState>(() =>
     createCatalogState(initialMovies),
   );
-  const [movieCatalog2026] = useState<MovieCatalogState>(() =>
-    createCatalogState(initialMovies2026),
+  const [currentYearMovieCatalog] = useState<MovieCatalogState>(() =>
+    createCatalogState(initialCurrentYearMovies),
   );
   const [seriesCatalog] = useState<MovieCatalogState>(() => createCatalogState(initialSeries));
   const [searchSeriesCatalog, setSearchSeriesCatalog] = useState<MovieCatalogState>(() =>
@@ -323,7 +325,7 @@ export function HomeScreen({
   const isSearchListOpen = isSearchFocused && Boolean(normalizedQuery);
   const hasSearchResults =
     movieCatalog.items.length +
-      movieCatalog2026.items.length +
+      currentYearMovieCatalog.items.length +
       seriesCatalog.items.length +
       (socialContext.friendCount > 0 ? socialHighlights.length : 0) >
     0;
@@ -641,15 +643,15 @@ export function HomeScreen({
             />
 
             <CatalogCarouselSection
-              error={movieCatalog2026.error}
-              href={`/${profile}/filmes/melhores-avaliados?year=2026`}
-              id="filmes-2026"
-              isLoading={movieCatalog2026.isLoading}
-              items={movieCatalog2026.items}
+              error={currentYearMovieCatalog.error}
+              href={`/${profile}/filmes/melhores-avaliados?year=${currentYear}`}
+              id={`filmes-${currentYear}`}
+              isLoading={currentYearMovieCatalog.isLoading}
+              items={currentYearMovieCatalog.items}
               onToggleSaved={toggleSaved}
               profile={profile}
               savedTitles={savedTitles}
-              title="Melhores filmes de 2026"
+              title={`Melhores filmes de ${currentYear}`}
               watchedByTitle={socialContext.watchedByTitle}
             />
 

@@ -4,9 +4,10 @@ import Link from 'next/link';
 import {
   Check,
   DoorOpen,
-  Mail,
+  LoaderCircle,
   Plus,
   Search,
+  Settings2,
   UserMinus,
   UserPlus,
   UsersRound,
@@ -15,7 +16,7 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { AppNavigation } from '@/components/layout/app-navigation';
-import { Button, Input, Tabs } from '@/components/ui';
+import { Button, ConfirmDialog, Input, Modal, Tabs } from '@/components/ui';
 import { useToast } from '@/hooks/use-toast';
 import { authFetch } from '@/lib/auth/auth-fetch';
 import { DEFAULT_PROFILE_SLUG } from '@/lib/profile/profiles';
@@ -65,6 +66,10 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
   const [searchedQuery, setSearchedQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [friendToRemove, setFriendToRemove] = useState<(Person & { friendshipId: string }) | null>(
+    null,
+  );
+  const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [roomDescription, setRoomDescription] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
@@ -206,6 +211,7 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
       }
       setSelectedFriends((current) => current.filter((id) => id !== friendId));
       await loadOverview();
+      setFriendToRemove(null);
       showToast({ title: 'Amizade removida', variant: 'success' });
     } catch (error) {
       showToast({
@@ -222,6 +228,19 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
     setSelectedFriends((current) =>
       current.includes(friendId) ? current.filter((id) => id !== friendId) : [...current, friendId],
     );
+  }
+
+  function resetRoomForm() {
+    setRoomName('');
+    setRoomDescription('');
+    setSelectedFriends([]);
+    setMatchMode('ALL_PARTICIPANTS');
+  }
+
+  function handleCreateRoomOpenChange(open: boolean) {
+    if (isCreatingRoom) return;
+    setIsCreateRoomOpen(open);
+    if (!open) resetRoomForm();
   }
 
   async function createRoom(event: FormEvent<HTMLFormElement>) {
@@ -242,11 +261,9 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
       if (!response.ok || !payload.success) {
         throw new Error(payload.success ? 'Não foi possível criar.' : payload.message);
       }
-      setRoomName('');
-      setRoomDescription('');
-      setSelectedFriends([]);
-      setMatchMode('ALL_PARTICIPANTS');
       await loadOverview();
+      resetRoomForm();
+      setIsCreateRoomOpen(false);
       showToast({ title: 'Sala criada', variant: 'success' });
     } catch (error) {
       showToast({
@@ -303,51 +320,6 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
         </section>
       ) : null}
 
-      <section className="community-section" aria-labelledby="find-friends-title">
-        <div className="community-section-heading">
-          <div>
-            <span className="home-kicker">Novas conexões</span>
-            <h2 id="find-friends-title">Encontrar pessoas</h2>
-          </div>
-        </div>
-        <form className="community-search" onSubmit={handleSearch} role="search">
-          <Input
-            aria-label="Buscar pessoas por nome ou e-mail"
-            leftElement={<Search aria-hidden="true" size={18} />}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="Nome ou e-mail"
-            type="search"
-            value={search}
-          />
-          <Button isLoading={isSearching} type="submit">
-            Buscar
-          </Button>
-        </form>
-        {overview.suggestions.length > 0 ? (
-          <div className="community-people-list">
-            {overview.suggestions.map((person) => (
-              <article className="community-person" key={person.id}>
-                <Initials name={person.name} />
-                <div>
-                  <strong>{person.name}</strong>
-                  <span>{person.email}</span>
-                </div>
-                <Button
-                  disabled={busyId === person.id}
-                  onClick={() => requestFriend(person.id)}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <UserPlus aria-hidden="true" size={17} /> Adicionar
-                </Button>
-              </article>
-            ))}
-          </div>
-        ) : searchedQuery && searchedQuery === search.trim() && !isSearching ? (
-          <p className="community-empty">Nenhuma pessoa disponível para essa busca.</p>
-        ) : null}
-      </section>
-
       <section className="community-section" aria-labelledby="friends-title">
         <div className="community-section-heading">
           <div>
@@ -356,7 +328,47 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
           </div>
           <span className="community-count">{overview.friends.length}</span>
         </div>
-        {overview.friends.length > 0 ? (
+        <form className="community-search" onSubmit={handleSearch} role="search">
+          <Input
+            aria-label="Buscar pessoas por nome ou e-mail"
+            leftElement={<Search aria-hidden="true" size={18} />}
+            onChange={(event) => handleSearchChange(event.target.value)}
+            placeholder="Nome ou e-mail"
+            rightElement={
+              isSearching ? (
+                <LoaderCircle aria-label="Buscando pessoas" className="animate-spin" size={17} />
+              ) : null
+            }
+            type="search"
+            value={search}
+          />
+        </form>
+
+        {search.trim() ? (
+          overview.suggestions.length > 0 ? (
+            <div className="community-people-list" aria-label="Resultados da busca">
+              {overview.suggestions.map((person) => (
+                <article className="community-person" key={person.id}>
+                  <Initials name={person.name} />
+                  <div>
+                    <strong>{person.name}</strong>
+                    <span>{person.email}</span>
+                  </div>
+                  <Button
+                    disabled={busyId === person.id}
+                    onClick={() => requestFriend(person.id)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <UserPlus aria-hidden="true" size={17} /> Adicionar
+                  </Button>
+                </article>
+              ))}
+            </div>
+          ) : searchedQuery && searchedQuery === search.trim() && !isSearching ? (
+            <p className="community-empty">Nenhuma pessoa disponível para essa busca.</p>
+          ) : null
+        ) : overview.friends.length > 0 ? (
           <div className="community-friend-grid">
             {overview.friends.map((friend) => (
               <article className="community-friend" key={friend.id}>
@@ -367,9 +379,9 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
                 </div>
                 <Button
                   aria-label={`Remover ${friend.name} dos amigos`}
-                  disabled={busyId === friend.friendshipId}
-                  onClick={() => removeFriendship(friend.friendshipId, friend.id)}
-                  size="sm"
+                  className="community-friend-remove"
+                  onClick={() => setFriendToRemove(friend)}
+                  size="icon"
                   variant="ghost"
                 >
                   <UserMinus aria-hidden="true" size={16} />
@@ -388,95 +400,25 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
   );
 
   const roomsPanel = (
-    <div className="community-room-layout">
-      <form className="community-room-form" onSubmit={createRoom}>
-        <div className="community-section-heading">
-          <div>
-            <span className="home-kicker">Novo grupo</span>
-            <h2>Criar sala</h2>
-          </div>
-          <Plus aria-hidden="true" size={21} />
-        </div>
-        <Input
-          label="Nome da sala"
-          maxLength={150}
-          onChange={(event) => setRoomName(event.target.value)}
-          required
-          value={roomName}
-        />
-        <label className="community-textarea-label" htmlFor="room-description">
-          Descrição <span>(opcional)</span>
-        </label>
-        <textarea
-          id="room-description"
-          maxLength={500}
-          onChange={(event) => setRoomDescription(event.target.value)}
-          placeholder="Ex.: clássicos para assistir no fim de semana"
-          value={roomDescription}
-        />
-        <fieldset className="community-rule-options">
-          <legend>Quando um título entra na sala?</legend>
-          <label>
-            <input
-              checked={matchMode === 'ALL_PARTICIPANTS'}
-              name="match-mode"
-              onChange={() => setMatchMode('ALL_PARTICIPANTS')}
-              type="radio"
-            />
-            <span>
-              <strong>Todos avaliaram</strong>
-              <small>Regra padrão para encontrar gostos realmente em comum.</small>
-            </span>
-          </label>
-          <label>
-            <input
-              checked={matchMode === 'ANY_PAIR'}
-              name="match-mode"
-              onChange={() => setMatchMode('ANY_PAIR')}
-              type="radio"
-            />
-            <span>
-              <strong>Pelo menos 2 avaliaram</strong>
-              <small>Exibe o título assim que duas pessoas derem uma nota.</small>
-            </span>
-          </label>
-        </fieldset>
-        <fieldset className="community-friend-selector">
-          <legend>Convidar amigos</legend>
-          {overview.friends.length > 0 ? (
-            overview.friends.map((friend) => (
-              <label key={friend.id}>
-                <input
-                  checked={selectedFriends.includes(friend.id)}
-                  onChange={() => toggleFriend(friend.id)}
-                  type="checkbox"
-                />
-                <Initials name={friend.name} />
-                <span>{friend.name}</span>
-              </label>
-            ))
-          ) : (
-            <p>Adicione amigos antes de criar uma sala em grupo.</p>
-          )}
-        </fieldset>
-        <Button
-          isLoading={isCreatingRoom}
-          leftIcon={<DoorOpen aria-hidden="true" size={18} />}
-          size="lg"
-          type="submit"
-        >
-          Criar sala
-        </Button>
-      </form>
-
-      <section className="community-rooms" aria-labelledby="rooms-title">
-        <div className="community-section-heading">
+    <div className="community-rooms-view">
+      <section className="community-rooms community-rooms-clean" aria-labelledby="rooms-title">
+        <div className="community-rooms-toolbar">
           <div>
             <span className="home-kicker">Seus grupos</span>
-            <h2 id="rooms-title">Salas</h2>
+            <div className="community-rooms-title-row">
+              <h2 id="rooms-title">Salas</h2>
+              <span className="community-count">{overview.rooms.length}</span>
+            </div>
+            <p>Entre em uma sala existente ou reúna seus amigos em um novo grupo.</p>
           </div>
-          <span className="community-count">{overview.rooms.length}</span>
+          <Button
+            leftIcon={<Plus aria-hidden="true" size={18} />}
+            onClick={() => setIsCreateRoomOpen(true)}
+          >
+            Criar sala
+          </Button>
         </div>
+
         {overview.rooms.length > 0 ? (
           <div className="community-room-list">
             {overview.rooms.map((room) => (
@@ -502,12 +444,144 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
             ))}
           </div>
         ) : (
-          <div className="community-empty-state">
+          <div className="community-empty-state community-rooms-empty">
             <DoorOpen aria-hidden="true" size={28} />
-            <p>Você ainda não participa de nenhuma sala.</p>
+            <div>
+              <h3>Nenhuma sala por enquanto</h3>
+              <p>Crie um grupo para começar a encontrar títulos em comum.</p>
+            </div>
+            <Button
+              leftIcon={<Plus aria-hidden="true" size={17} />}
+              onClick={() => setIsCreateRoomOpen(true)}
+              variant="outline"
+            >
+              Criar primeira sala
+            </Button>
           </div>
         )}
       </section>
+
+      <Modal.Root
+        closeOnOverlayClick={!isCreatingRoom}
+        onOpenChange={handleCreateRoomOpenChange}
+        open={isCreateRoomOpen}
+      >
+        <Modal.Header>
+          <div className="community-modal-heading">
+            <Modal.Title>Criar sala</Modal.Title>
+            <Modal.Description>
+              Reúna seus amigos para descobrir o próximo título do grupo.
+            </Modal.Description>
+          </div>
+          <Modal.CloseButton />
+        </Modal.Header>
+
+        <form className="community-room-modal-form" onSubmit={createRoom}>
+          <Modal.Body className="community-room-modal-body">
+            <Input
+              autoFocus
+              label="Nome da sala"
+              maxLength={150}
+              onChange={(event) => setRoomName(event.target.value)}
+              placeholder="Ex.: Cinema de sexta"
+              required
+              value={roomName}
+            />
+
+            <div className="community-textarea-field">
+              <label className="community-textarea-label" htmlFor="room-description">
+                Descrição <span>(opcional)</span>
+              </label>
+              <textarea
+                id="room-description"
+                maxLength={500}
+                onChange={(event) => setRoomDescription(event.target.value)}
+                placeholder="Ex.: clássicos para assistir no fim de semana"
+                value={roomDescription}
+              />
+            </div>
+
+            <fieldset className="community-friend-selector">
+              <legend>
+                Convidar amigos <span>(opcional)</span>
+              </legend>
+              {overview.friends.length > 0 ? (
+                overview.friends.map((friend) => (
+                  <label key={friend.id}>
+                    <input
+                      checked={selectedFriends.includes(friend.id)}
+                      onChange={() => toggleFriend(friend.id)}
+                      type="checkbox"
+                    />
+                    <Initials name={friend.name} />
+                    <span>{friend.name}</span>
+                  </label>
+                ))
+              ) : (
+                <p>Você pode criar a sala agora e convidar pessoas depois.</p>
+              )}
+            </fieldset>
+
+            <details className="community-room-settings">
+              <summary>
+                <Settings2 aria-hidden="true" size={18} />
+                <span>
+                  <strong>Regra do match</strong>
+                  <small>
+                    {matchMode === 'ALL_PARTICIPANTS'
+                      ? 'Todos precisam avaliar'
+                      : 'Duas avaliações são suficientes'}
+                  </small>
+                </span>
+              </summary>
+              <fieldset className="community-rule-options">
+                <legend>Quando um título entra na sala?</legend>
+                <label>
+                  <input
+                    checked={matchMode === 'ALL_PARTICIPANTS'}
+                    name="match-mode"
+                    onChange={() => setMatchMode('ALL_PARTICIPANTS')}
+                    type="radio"
+                  />
+                  <span>
+                    <strong>Todos avaliaram</strong>
+                    <small>Melhor para encontrar gostos realmente em comum.</small>
+                  </span>
+                </label>
+                <label>
+                  <input
+                    checked={matchMode === 'ANY_PAIR'}
+                    name="match-mode"
+                    onChange={() => setMatchMode('ANY_PAIR')}
+                    type="radio"
+                  />
+                  <span>
+                    <strong>Pelo menos 2 avaliaram</strong>
+                    <small>O título aparece assim que duas pessoas derem uma nota.</small>
+                  </span>
+                </label>
+              </fieldset>
+            </details>
+          </Modal.Body>
+
+          <Modal.Footer className="community-room-modal-footer">
+            <Button
+              disabled={isCreatingRoom}
+              onClick={() => handleCreateRoomOpenChange(false)}
+              variant="ghost"
+            >
+              Cancelar
+            </Button>
+            <Button
+              isLoading={isCreatingRoom}
+              leftIcon={<DoorOpen aria-hidden="true" size={18} />}
+              type="submit"
+            >
+              Criar sala
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal.Root>
     </div>
   );
 
@@ -518,19 +592,8 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
         <main className="community-page">
           <header className="community-hero">
             <span className="home-kicker">Viuê em comunidade</span>
-            <h1>Descubra o que conecta vocês.</h1>
-            <p>
-              Gerencie suas amizades, reúna pessoas e encontre os títulos que todo mundo curtiu.
-            </p>
-            <div className="community-hero-stats">
-              <span>
-                <UsersRound aria-hidden="true" size={17} /> {overview.friends.length} amigos
-              </span>
-              <span>
-                <Mail aria-hidden="true" size={17} /> {overview.incomingRequests.length}{' '}
-                solicitações
-              </span>
-            </div>
+            <h1>Comunidade</h1>
+            <p>Encontre amigos, organize suas salas e escolha o que assistir em grupo.</p>
           </header>
           <Tabs
             ariaLabel="Áreas da comunidade"
@@ -538,19 +601,48 @@ export function CommunityScreen({ initialOverview }: { initialOverview: Communit
               {
                 content: friendsPanel,
                 icon: <UsersRound aria-hidden="true" size={18} />,
-                label: 'Amigos',
+                label: (
+                  <span className="community-tab-label">
+                    Amigos <span>{overview.friends.length}</span>
+                  </span>
+                ),
                 value: 'friends',
               },
               {
                 content: roomsPanel,
                 icon: <DoorOpen aria-hidden="true" size={18} />,
-                label: 'Salas',
+                label: (
+                  <span className="community-tab-label">
+                    Salas <span>{overview.rooms.length}</span>
+                  </span>
+                ),
                 value: 'rooms',
               },
             ]}
           />
         </main>
       </div>
+
+      <ConfirmDialog
+        confirmLabel="Remover amigo"
+        confirmVariant="danger"
+        description={
+          friendToRemove
+            ? `${friendToRemove.name} será removido da sua lista de amigos.`
+            : 'Esta amizade será removida.'
+        }
+        isConfirming={friendToRemove ? busyId === friendToRemove.friendshipId : false}
+        onConfirm={() => {
+          if (friendToRemove) {
+            void removeFriendship(friendToRemove.friendshipId, friendToRemove.id);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open && busyId !== friendToRemove?.friendshipId) setFriendToRemove(null);
+        }}
+        open={friendToRemove !== null}
+        title="Remover amizade?"
+      />
     </div>
   );
 }

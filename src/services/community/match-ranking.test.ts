@@ -111,6 +111,25 @@ describe('rankMatchCandidates', () => {
     expect(second).not.toEqual(first);
   });
 
+  it('varia o primeiro candidato entre sessões sem perder estabilidade na mesma sessão', () => {
+    const input = {
+      candidates: ['a', 'b', 'c', 'd', 'e'].map((id) => candidate(id)),
+      interactions: [],
+      participantIds: participants,
+    };
+    const firstCandidates = Array.from(
+      { length: 12 },
+      (_, index) => rankMatchCandidates({ ...input, rankingContext: `sessao-${index}` }).at(0)?.id,
+    );
+    const repeatedSession = rankMatchCandidates({
+      ...input,
+      rankingContext: 'sessao-0',
+    }).at(0)?.id;
+
+    expect(new Set(firstCandidates).size).toBeGreaterThan(1);
+    expect(repeatedSession).toBe(firstCandidates[0]);
+  });
+
   it('intercala gêneros sem superar um sinal forte da lista do grupo', () => {
     const ranked = rankMatchCandidates({
       candidates: [

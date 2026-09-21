@@ -10,9 +10,13 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { MoviePosterCard } from '@/components/catalog/movie-poster-card';
+import {
+  interleaveCatalogItems,
+  mergeUniqueCatalogItems,
+} from '@/components/discover/discover-catalog';
 import { Button } from '@/components/ui';
 import { authFetch } from '@/lib/auth/auth-fetch';
 import type { ProfileSlug } from '@/lib/profile/profiles';
@@ -59,21 +63,11 @@ function createCatalogSection(payload: {
   totalResults: number;
 }): CatalogPayload {
   return {
-    items: payload.items,
+    items: mergeUniqueCatalogItems(payload.items),
     page: 1,
     totalPages: payload.totalPages,
     totalResults: payload.totalResults,
   };
-}
-
-function interleave(a: readonly CatalogMovie[], b: readonly CatalogMovie[]): CatalogMovie[] {
-  const merged: CatalogMovie[] = [];
-  const max = Math.max(a.length, b.length);
-  for (let index = 0; index < max; index += 1) {
-    if (a[index]) merged.push(a[index]);
-    if (b[index]) merged.push(b[index]);
-  }
-  return merged;
 }
 
 export function DiscoverScreen({
@@ -116,6 +110,7 @@ export function DiscoverScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedTitles, setSavedTitles] = useState<string[]>([]);
 
   const seriesGenre = selectedGenre ? (MOVIE_TO_SERIES_GENRE_ID.get(selectedGenre) ?? null) : null;
   const seriesGenreUnavailable = selectedGenre !== null && seriesGenre === null;
@@ -148,7 +143,10 @@ export function DiscoverScreen({
           : payload.message,
       );
     }
-    return payload.data;
+    return {
+      ...payload.data,
+      items: mergeUniqueCatalogItems(payload.data.items),
+    };
   }
 
   async function replaceCatalog(genreId: number | null, queryValue: string) {
@@ -201,7 +199,7 @@ export function DiscoverScreen({
           }).then((data) =>
             setMovies((current) => ({
               ...current,
-              items: [...current.items, ...data.items],
+              items: mergeUniqueCatalogItems(current.items, data.items),
               page: data.page,
               totalPages: data.totalPages,
             })),
@@ -217,7 +215,7 @@ export function DiscoverScreen({
           }).then((data) =>
             setSeries((current) => ({
               ...current,
-              items: [...current.items, ...data.items],
+              items: mergeUniqueCatalogItems(current.items, data.items),
               page: data.page,
               totalPages: data.totalPages,
             })),
@@ -233,10 +231,30 @@ export function DiscoverScreen({
   }
 
   const selectedGenreName = genres.find((genre) => genre.id === selectedGenre)?.name;
-  const items = useMemo(() => interleave(movies.items, series.items), [movies.items, series.items]);
+  const items = useMemo(
+    () => interleaveCatalogItems(movies.items, series.items),
+    [movies.items, series.items],
+  );
   const seriesIds = useMemo(() => new Set(series.items.map((item) => item.id)), [series.items]);
   const totalResults = movies.totalResults + series.totalResults;
   const hasMore = movies.page < movies.totalPages || series.page < series.totalPages;
+
+  useEffect(() => {
+    void authFetch('/api/catalog/library')
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload.success) {
+          setSavedTitles(payload.data.map((item: CatalogMovie) => item.title));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  function toggleSaved(title: string) {
+    setSavedTitles((current) =>
+      current.includes(title) ? current.filter((item) => item !== title) : [...current, title],
+    );
+  }
 
   function scrollGenres(direction: 'left' | 'right') {
     genresRef.current?.scrollBy({
@@ -362,8 +380,9 @@ export function DiscoverScreen({
                   friendsWatched={0}
                   item={item}
                   key={`${item.id}-${item.tmdbId}`}
+                  onToggleSaved={toggleSaved}
                   profile={profile}
-                  saved={false}
+                  saved={savedTitles.includes(item.title)}
                 />
               ))}
             </div>

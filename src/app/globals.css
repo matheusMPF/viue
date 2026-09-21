@@ -1381,7 +1381,7 @@ button {
 
 .home-icon-button,
 .home-avatar,
-.title-cover button {
+.title-card-save {
   display: grid;
   width: 44px;
   height: 44px;
@@ -1416,7 +1416,7 @@ button {
 }
 
 .home-icon-button:hover,
-.title-cover button:hover {
+.title-card-save:hover {
   border-color: oklch(0.65 0.283 294 / 45%);
   color: var(--foreground);
 }
@@ -1940,6 +1940,7 @@ button {
 }
 
 .title-card {
+  position: relative;
   min-width: 0;
 }
 
@@ -2910,16 +2911,35 @@ button {
   line-height: 1;
 }
 
-.title-cover button {
+.title-card-save {
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 2;
   width: 38px;
   height: 38px;
   border-color: rgb(255 255 255 / 18%);
   background: rgb(8 5 15 / 72%);
   color: white;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
   backdrop-filter: blur(12px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .title-card-save {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-6px);
+  }
+
+  .title-card:hover .title-card-save,
+  .title-card:focus-within .title-card-save {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
 }
 
 .title-card-copy {
@@ -3379,8 +3399,13 @@ button.catalog-back {
 }
 
 .community-hero {
-  padding: 34px 0 30px;
+  padding: 26px 0 24px;
   border-bottom: 1px solid var(--border);
+}
+
+.community-hero h1 {
+  margin-top: 6px;
+  font-size: clamp(2rem, 4vw, 3rem);
 }
 
 .community-hero h1,
@@ -3400,14 +3425,6 @@ button.catalog-back {
   line-height: 1.65;
 }
 
-.community-hero-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.community-hero-stats span,
 .community-count,
 .room-matches-heading > span {
   display: inline-flex;
@@ -3427,13 +3444,29 @@ button.catalog-back {
   margin-top: 24px;
 }
 
+.community-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.community-tab-label > span {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  padding-inline: 6px;
+  font-size: 0.66rem;
+}
+
 .community-stack {
   display: grid;
   gap: 22px;
 }
 
 .community-section,
-.community-room-form,
 .community-rooms,
 .room-sidebar-panel > section {
   border: 1px solid var(--border);
@@ -3461,9 +3494,7 @@ button.catalog-back {
 }
 
 .community-search {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  max-width: 680px;
   margin-bottom: 16px;
 }
 
@@ -3543,7 +3574,7 @@ button.catalog-back {
 
 .community-friend-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -3552,6 +3583,21 @@ button.catalog-back {
   border-radius: 8px;
   background: var(--elevated);
   padding: 12px;
+}
+
+.community-friend-remove {
+  transition: opacity 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .community-friend-remove {
+    opacity: 0;
+  }
+
+  .community-friend:hover .community-friend-remove,
+  .community-friend:focus-within .community-friend-remove {
+    opacity: 1;
+  }
 }
 
 .community-empty,
@@ -3579,16 +3625,75 @@ button.catalog-back {
   margin: 0;
 }
 
-.community-room-layout {
+.community-rooms-view {
   display: grid;
-  grid-template-columns: minmax(290px, 0.8fr) minmax(0, 1.2fr);
-  align-items: start;
-  gap: 18px;
 }
 
-.community-room-form {
+.community-rooms-clean {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.community-rooms-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.community-rooms-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+}
+
+.community-rooms-title-row h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0;
+}
+
+.community-rooms-toolbar p {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.community-rooms-clean .community-room-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.community-rooms-empty {
+  min-height: 260px;
+}
+
+.community-rooms-empty > div {
   display: grid;
-  gap: 16px;
+  gap: 5px;
+}
+
+.community-modal-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.community-room-modal-form {
+  display: contents;
+}
+
+.community-room-modal-body {
+  display: grid;
+  gap: 18px;
+  padding-top: 18px;
+}
+
+.community-textarea-field {
+  display: grid;
+  gap: 8px;
 }
 
 .community-textarea-label,
@@ -3604,7 +3709,7 @@ button.catalog-back {
   font-weight: 600;
 }
 
-.community-room-form textarea {
+.community-textarea-field textarea {
   min-height: 88px;
   resize: vertical;
   border: 1px solid var(--input);
@@ -3617,7 +3722,7 @@ button.catalog-back {
   font-size: 0.82rem;
 }
 
-.community-room-form textarea:focus-visible {
+.community-textarea-field textarea:focus-visible {
   border-color: var(--ring);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 20%, transparent);
 }
@@ -3634,6 +3739,11 @@ button.catalog-back {
 .community-rule-options legend,
 .community-friend-selector legend {
   margin-bottom: 8px;
+}
+
+.community-friend-selector legend span {
+  color: var(--muted-foreground);
+  font-weight: 600;
 }
 
 .community-rule-options label,
@@ -3688,6 +3798,70 @@ button.catalog-back {
   width: 32px;
   height: 32px;
   font-size: 0.62rem;
+}
+
+.community-room-settings {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--elevated);
+}
+
+.community-room-settings summary {
+  display: grid;
+  min-height: 60px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.community-room-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.community-room-settings summary::after {
+  content: '+';
+  color: var(--muted-foreground);
+  font-size: 1.1rem;
+  transition: transform 160ms ease;
+}
+
+.community-room-settings[open] summary::after {
+  transform: rotate(45deg);
+}
+
+.community-room-settings summary > svg {
+  color: var(--secondary);
+}
+
+.community-room-settings summary > span {
+  display: grid;
+  gap: 3px;
+}
+
+.community-room-settings summary strong {
+  font-size: 0.78rem;
+}
+
+.community-room-settings summary small {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+
+.community-room-settings .community-rule-options {
+  border-top: 1px solid var(--border);
+  padding: 14px;
+}
+
+.community-room-modal-footer {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding-top: 14px;
 }
 
 .community-room-card {
@@ -3966,8 +4140,11 @@ button.catalog-back {
   position: relative;
   display: grid;
   overflow: hidden;
-  min-height: 420px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   aspect-ratio: 2 / 3;
+  align-self: start;
   place-items: center;
   border-right: 1px solid var(--border);
   background: var(--elevated);
@@ -4491,7 +4668,6 @@ button.catalog-back {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .community-room-layout,
   .room-layout {
     grid-template-columns: 1fr;
   }
@@ -4535,16 +4711,21 @@ button.catalog-back {
     padding-top: 20px;
   }
 
-  .community-search {
-    grid-template-columns: 1fr;
+  .community-rooms-clean {
+    padding: 0;
   }
 
-  .community-search button {
+  .community-rooms-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .community-rooms-toolbar > button {
     width: 100%;
   }
 
   .community-section,
-  .community-room-form,
   .community-rooms,
   .room-sidebar-panel > section {
     padding: 16px;
@@ -4561,6 +4742,10 @@ button.catalog-back {
 
   .community-friend-grid,
   .room-sidebar-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .community-rooms-clean .community-room-list {
     grid-template-columns: 1fr;
   }
 

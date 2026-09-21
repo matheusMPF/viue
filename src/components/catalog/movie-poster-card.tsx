@@ -42,21 +42,6 @@ export function MoviePosterCard({
           ) : (
             <span>{item.title}</span>
           )}
-          {onToggleSaved ? (
-            <button
-              aria-label={`${saved ? 'Remover' : 'Salvar'} ${item.title}`}
-              aria-pressed={saved}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleSaved(item.title);
-              }}
-              title={saved ? 'Remover da lista' : 'Salvar na lista'}
-              type="button"
-            >
-              <Bookmark aria-hidden="true" fill={saved ? 'currentColor' : 'none'} size={17} />
-            </button>
-          ) : null}
         </div>
         <div className="title-card-copy">
           <h3>{item.title}</h3>
@@ -76,6 +61,18 @@ export function MoviePosterCard({
           </div>
         </div>
       </Link>
+      {onToggleSaved ? (
+        <button
+          aria-label={saved ? `Remover ${item.title} da lista` : `Adicionar ${item.title} à lista`}
+          aria-pressed={saved}
+          className="title-card-save"
+          onClick={() => onToggleSaved(item.title)}
+          title={saved ? 'Remover da lista' : 'Adicionar à lista'}
+          type="button"
+        >
+          <Bookmark aria-hidden="true" fill={saved ? 'currentColor' : 'none'} size={17} />
+        </button>
+      ) : null}
     </article>
   );
 }

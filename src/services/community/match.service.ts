@@ -21,6 +21,7 @@ import { closeInactiveCommunityState } from './community-lifecycle.service';
 const MAX_CANDIDATES = 50;
 const CATALOG_PAGE_SIZE = 30;
 const MAX_CATALOG_PAGES = 12;
+const RECENT_MATCH_SESSION_COUNT = 3;
 
 const matchPersonSelect = {
   id: true,
@@ -132,22 +133,46 @@ async function loadCatalogPool(
 async function populateRound({
   filters,
   participantIds,
+  roomId,
   roundId,
   sessionId,
   type,
 }: {
   filters: MatchFilters;
   participantIds: string[];
+  roomId: string;
   roundId: string;
   sessionId: string;
   type: MatchContentType;
 }) {
-  const priorCandidates = await prisma.tb_room_match_candidate.findMany({
-    where: { session_id: sessionId },
-    select: { content_id: true },
-  });
-  const excludedIds = new Set(priorCandidates.map((candidate) => candidate.content_id));
-  const catalogIds = await loadCatalogPool(type, filters, excludedIds);
+  const [priorCandidates, recentSessions] = await Promise.all([
+    prisma.tb_room_match_candidate.findMany({
+      where: { session_id: sessionId },
+      select: { content_id: true },
+    }),
+    prisma.tb_room_match_session.findMany({
+      where: { id: { not: sessionId }, room_id: roomId, type },
+      orderBy: { created_at: 'desc' },
+      take: RECENT_MATCH_SESSION_COUNT,
+      select: {
+        tb_candidate: {
+          orderBy: { position: 'asc' },
+          select: { content_id: true },
+          take: 1,
+        },
+      },
+    }),
+  ]);
+  const sessionExcludedIds = new Set(priorCandidates.map((candidate) => candidate.content_id));
+  const recentFirstCandidateIds = recentSessions.flatMap((session) =>
+    session.tb_candidate.map((candidate) => candidate.content_id),
+  );
+  const excludedIds = new Set([...sessionExcludedIds, ...recentFirstCandidateIds]);
+  let catalogIds = await loadCatalogPool(type, filters, excludedIds);
+
+  if (catalogIds.length === 0 && recentFirstCandidateIds.length > 0) {
+    catalogIds = await loadCatalogPool(type, filters, sessionExcludedIds);
+  }
 
   const [contents, interactions] = await Promise.all([
     prisma.tb_content.findMany({
@@ -464,7 +489,7 @@ export async function startMatchSession(userId: string, roomId: string, type: Ma
   }
 
   try {
-    await populateRound({ ...created, filters: {}, type });
+    await populateRound({ ...created, filters: {}, roomId, type });
   } catch (error) {
     await prisma.tb_room_match_session.update({
       where: { id: created.sessionId },
@@ -671,7 +696,7 @@ export async function startNextMatchRound(
   }
 
   try {
-    await populateRound({ ...reservation, filters, sessionId });
+    await populateRound({ ...reservation, filters, roomId, sessionId });
   } catch (error) {
     await prisma.tb_room_match_round.deleteMany({
       where: { id: reservation.roundId, candidate_count: 0 },

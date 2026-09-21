@@ -1,5 +1,6 @@
 import { content_type } from '@/generated/prisma/enums';
 import { prisma } from '@/lib/db/client';
+import { getCurrentCatalogYear } from '@/services/catalog/catalog-period';
 import {
   discoverTmdbMovies,
   discoverTopRatedTmdbMovies,
@@ -14,7 +15,7 @@ const TMDB_SOURCE = 'TMDB';
 const DEFAULT_MOVIES_PER_REQUEST = 10;
 const MAX_MOVIES_PER_REQUEST = 30;
 
-export type MovieCatalogKind = 'discover' | 'top-rated' | 'top-rated-2026' | 'search';
+export type MovieCatalogKind = 'discover' | 'top-rated' | 'top-rated-year' | 'search';
 
 export type MovieCatalogOptions = TmdbDiscoverFilters & {
   kind?: MovieCatalogKind;
@@ -22,6 +23,7 @@ export type MovieCatalogOptions = TmdbDiscoverFilters & {
   limit?: number;
   page?: number;
   query?: string;
+  year?: number;
 };
 
 function parseTmdbDate(value: string) {
@@ -150,11 +152,14 @@ function getTmdbMoviesByKind(
   kind: MovieCatalogKind,
   query: string,
   page: number,
+  year?: number,
   filters?: TmdbDiscoverFilters,
 ) {
   if (kind === 'search' || query.trim()) return searchTmdbMovies(query, page);
   if (kind === 'discover') return discoverTmdbMovies(page, filters);
-  if (kind === 'top-rated-2026') return discoverTopRatedTmdbMovies(page, 2026);
+  if (kind === 'top-rated-year') {
+    return discoverTopRatedTmdbMovies(page, year ?? getCurrentCatalogYear());
+  }
   return discoverTopRatedTmdbMovies(page);
 }
 
@@ -163,6 +168,7 @@ async function getTmdbMovieBatch(
   query: string,
   page: number,
   limit: number,
+  year?: number,
   filters?: TmdbDiscoverFilters,
 ) {
   const startIndex = (page - 1) * limit;
@@ -174,7 +180,7 @@ async function getTmdbMovieBatch(
   );
   const responses = await Promise.all(
     Array.from({ length: tmdbPageCount }, (_, index) =>
-      getTmdbMoviesByKind(kind, query, firstTmdbPage + index, filters),
+      getTmdbMoviesByKind(kind, query, firstTmdbPage + index, year, filters),
     ),
   );
   const totalResults = responses[0]?.total_results ?? 0;
@@ -199,13 +205,14 @@ export async function getMovieCatalog({
   query = '',
   runtimeMax,
   runtimeMin,
+  year,
   yearFrom,
   yearTo,
 }: MovieCatalogOptions = {}) {
   const boundedLimit = Math.min(Math.max(limit, 1), MAX_MOVIES_PER_REQUEST);
   const [genresResponse, moviesResponse] = await Promise.all([
     getTmdbMovieGenres(),
-    getTmdbMovieBatch(kind, query, page, boundedLimit, {
+    getTmdbMovieBatch(kind, query, page, boundedLimit, year, {
       genreId,
       runtimeMax,
       runtimeMin,
