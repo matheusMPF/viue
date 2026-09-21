@@ -58,7 +58,9 @@ Abra [http://localhost:3000](http://localhost:3000). Os Route Handlers ficam sob
 
 ## Banco de dados
 
-O repositório não versiona migrations do Prisma (`prisma/schema.prisma` foi gerado por introspecção de um banco existente). `DATABASE_URL` deve apontar para um banco PostgreSQL que já contenha as tabelas do schema — `pnpm dev`/`pnpm db:generate` não criam o schema no banco.
+`prisma/schema.prisma` foi gerado por introspecção de um banco existente. O repositório versiona apenas as migrations incrementais mais recentes; por isso, elas ainda não inicializam um PostgreSQL totalmente vazio. `pnpm dev` e `pnpm db:generate` não criam o schema no banco.
+
+No primeiro deploy, restaure o schema do banco local conforme o guia de produção. Depois disso, novas migrations podem ser aplicadas com `prisma migrate deploy`.
 
 Antes de usar o fluxo de autenticação, aplique a migration manual em `prisma/manual-migrations/20260827_auth_otp_hash.sql` (amplia a coluna `tb_otp.code` para `VARCHAR(255)`), caso ainda não tenha sido aplicada no banco de destino.
 
@@ -67,6 +69,10 @@ Para inspecionar os dados visualmente:
 ```bash
 pnpm db:studio
 ```
+
+## Produção
+
+O deploy recomendado na VPS usa Docker Compose, PostgreSQL privado, Nginx como proxy reverso e HTTPS. Veja o passo a passo em [`docs/production-deployment.md`](docs/production-deployment.md).
 
 ## Solução de problemas
 

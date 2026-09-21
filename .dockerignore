@@ -1,0 +1,12 @@
+.git
+.next
+.pnpm-store
+node_modules
+storybook-static
+coverage
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+
